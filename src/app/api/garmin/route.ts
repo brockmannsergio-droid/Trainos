@@ -144,6 +144,59 @@ const safeFetch = async <T>(label: string, fetcher: () => Promise<T>) => {
   }
 };
 
+const extractBodyBattery = (bodyBatteryData: unknown, sleepPayload: ReturnType<typeof extractSleep>) => {
+  if (!bodyBatteryData || typeof bodyBatteryData !== "object") {
+    return sleepPayload.bodyBatteryLatest;
+  }
+
+  const lastEntry = getLastArrayItem(bodyBatteryData);
+  const lastValue = getNumberValue(lastEntry as Record<string, any>, "value", "battery", "bodyBattery", "charged");
+  if (lastValue != null) return lastValue;
+
+  const statsList = getLastArrayItem(
+    (bodyBatteryData as Record<string, any>).bodyBatteryStatList ??
+      (bodyBatteryData as Record<string, any>).bodyBatteryStats ??
+      (bodyBatteryData as Record<string, any>).statistics ??
+      (bodyBatteryData as Record<string, any>).data
+  );
+
+  return getNumberValue(statsList as Record<string, any>, "value", "battery", "bodyBattery", "charged") ?? sleepPayload.bodyBatteryLatest;
+};
+
+const fetchBodyBatteryData = async (client: GarminConnect, today: Date, sevenDaysAgo: Date) => {
+  const wellnessBase = ((client as any).url?.GC_API as string) ?? "https://connectapi.garmin.com";
+  const rawClient: any = client as any;
+
+  if (typeof rawClient.getBodyBattery === "function") {
+    try {
+      return await rawClient.getBodyBattery(today);
+    } catch {
+      try {
+        return await rawClient.getBodyBattery(sevenDaysAgo, today);
+      } catch (error) {
+        console.warn("[Garmin] getBodyBattery fallback failed:", error);
+      }
+    }
+  }
+
+  try {
+    return await rawClient.get(`${wellnessBase}/wellness-service/wellness/dailyBodyBattery`, {
+      params: { date: toDateString(today) },
+    });
+  } catch (singleDateError) {
+    console.warn("[Garmin] dailyBodyBattery single-date fetch failed:", singleDateError);
+  }
+
+  try {
+    return await rawClient.get(`${wellnessBase}/wellness-service/wellness/dailyBodyBattery`, {
+      params: { startDate: toDateString(sevenDaysAgo), endDate: toDateString(today) },
+    });
+  } catch (rangeError) {
+    console.warn("[Garmin] dailyBodyBattery range fetch failed:", rangeError);
+    throw rangeError;
+  }
+};
+
 const fetchGarminData = async () => {
   const username = process.env.GARMIN_EMAIL;
   const password = process.env.GARMIN_PASSWORD;
@@ -156,15 +209,11 @@ const fetchGarminData = async () => {
   await client.login();
 
   const today = parseDate(0);
-  const wellnessBase = ((client as any).url?.GC_API as string) ?? "https://connectapi.garmin.com";
+  const sevenDaysAgo = parseDate(7);
 
   const activitiesResult = await safeFetch("activities", () => client.getActivities(0, 30));
   const sleepResult = await safeFetch("sleepData", () => client.getSleepData(today));
-  const bodyBatteryResult = await safeFetch("bodyBatteryData", () =>
-    (client as any).get(`${wellnessBase}/wellness-service/wellness/dailyBodyBattery`, {
-      params: { date: toDateString(today) },
-    })
-  );
+  const bodyBatteryResult = await safeFetch("bodyBatteryData", () => fetchBodyBatteryData(client, today, sevenDaysAgo));
   const heartRateResult = await safeFetch("heartRateData", () => client.getHeartRate(today));
 
   const activities = (activitiesResult.data ?? []) as unknown[];
@@ -183,10 +232,7 @@ const fetchGarminData = async () => {
 
   const hrvValue = sleepPayload.hrvValue ?? null;
   const hrvStatus = sleepPayload.hrvStatus ?? null;
-  const bodyBatteryLatest =
-    sleepPayload.bodyBatteryLatest ??
-    getNumberValue(getLastArrayItem(bodyBatteryData) as Record<string, any>, "value", "battery", "bodyBattery") ??
-    null;
+  const bodyBatteryLatest = extractBodyBattery(bodyBatteryData, sleepPayload);
   const bodyBatteryChange = sleepPayload.bodyBatteryChange ?? null;
 
   const stressValue = sleepPayload.stressValue ?? null;
@@ -208,7 +254,7 @@ const fetchGarminData = async () => {
     bodyBattery: {
       latest: bodyBatteryLatest,
       change: bodyBatteryChange,
-      raw: sleepPayload.raw,
+      raw: bodyBatteryData,
     },
     stress: {
       value: stressValue,
