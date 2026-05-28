@@ -240,6 +240,7 @@ const fetchVo2MaxData = async (client: GarminConnect, today: Date) => {
     { name: "getMaxMetrics", args: [today] },
     { name: "getVO2MaxTracking", args: [] },
     { name: "getPerformanceMetrics", args: [today] },
+    { name: "getUserSettings", args: [] },
   ]);
   if (methodResult != null) return methodResult;
 
@@ -335,7 +336,10 @@ const fetchGarminData = async () => {
   const stressValue = sleepPayload.stressValue ?? null;
   const stressMax = null;
 
-  const vo2MaxValue = extractLatestResponseValue(vo2MaxData, "value", "vo2Max", "vo2MaxValue", "maxVo2", "vo2");
+  const vo2MaxValue =
+    extractLatestResponseValue(vo2MaxData, "value", "vo2Max", "vo2MaxValue", "maxVo2", "vo2") ??
+    getNumberValue((vo2MaxData as Record<string, any>)?.userData, "vo2MaxRunning", "vo2MaxCycling") ??
+    getNumberValue(vo2MaxData as Record<string, any>, "vo2MaxRunning", "vo2MaxCycling");
   const vo2MaxTrend = getValue(vo2MaxData as Record<string, any>, "trend", "trendDirection", "status");
   const vo2MaxAvailable = vo2MaxValue != null;
 

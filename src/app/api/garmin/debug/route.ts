@@ -7,6 +7,8 @@ const parseDate = (daysAgo = 0) => {
   return date;
 };
 
+const toDateString = (date: Date) => date.toISOString().slice(0, 10);
+
 const safeCall = async (label: string, fn: () => Promise<unknown>) => {
   try {
     const result = await fn();
@@ -15,6 +17,25 @@ const safeCall = async (label: string, fn: () => Promise<unknown>) => {
     const message = error instanceof Error ? error.message : String(error);
     return { label, result: null, error: message };
   }
+};
+
+const fetchRawEndpointResponses = async (client: GarminConnect, endpoints: string[], params: Record<string, string>) => {
+  const rawClient: any = client as any;
+  const wellnessBase = ((client as any).url?.GC_API as string) ?? "https://connectapi.garmin.com";
+  const results: Record<string, { result: unknown | null; error: string | null }> = {};
+
+  for (const endpoint of endpoints) {
+    const url = endpoint.startsWith("http") ? endpoint : `${wellnessBase}${endpoint}`;
+    try {
+      const result = await rawClient.get(url, { params });
+      results[endpoint] = { result, error: null };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      results[endpoint] = { result: null, error: message };
+    }
+  }
+
+  return results;
 };
 
 export async function GET() {
@@ -69,6 +90,12 @@ export async function GET() {
       }
       throw new Error("getMaxMetrics method not available");
     }),
+    getUserSettings: await safeCall("getUserSettings", async () => {
+      if (typeof rawClient.getUserSettings === "function") {
+        return await rawClient.getUserSettings();
+      }
+      throw new Error("getUserSettings method not available");
+    }),
     getTrainingReadiness: await safeCall("getTrainingReadiness", async () => {
       if (typeof rawClient.getTrainingReadiness === "function") {
         return await rawClient.getTrainingReadiness(today);
@@ -93,6 +120,14 @@ export async function GET() {
       }
       throw new Error("getWellnessData method not available");
     }),
+    rawBodyBatteryEndpoints: await safeCall("rawBodyBatteryEndpoints", async () =>
+      fetchRawEndpointResponses(rawClient, [
+        "/wellness-service/wellness/dailyBodyBattery",
+        "/wellness-service/wellness/dailyWellness",
+        "/wellness-service/wellness/dailyWellnessData",
+        "/wellness-service/wellness/dailyStats",
+      ], { date: toDateString(today), startDate: toDateString(sevenDaysAgo), endDate: toDateString(today) })
+    ),
   };
 
   return NextResponse.json({ login: "success", responses });
