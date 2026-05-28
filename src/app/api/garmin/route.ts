@@ -18,15 +18,42 @@ const parseDate = (daysAgo = 0) => {
 
 const extractSleep = (sleepData: unknown) => {
   if (!sleepData || typeof sleepData !== "object") {
-    return { score: null, duration: null, quality: null, raw: sleepData };
+    return {
+      score: null,
+      duration: null,
+      quality: null,
+      hrvValue: null,
+      hrvStatus: null,
+      bodyBatteryLatest: null,
+      bodyBatteryChange: null,
+      stressValue: null,
+      raw: sleepData,
+    };
   }
 
   const summary = (sleepData as Record<string, any>).dailySleepDTO ?? sleepData;
   const score = getValue(summary, "sleepScore", "score", "sleepQualityScore", "sleepQuality");
   const duration = getValue(summary, "sleepTimeSeconds", "totalSleepDuration", "sleepDurationInSeconds");
   const quality = getValue(summary, "sleepQualityScore", "sleepQuality");
+  const hrvValue = getValue(sleepData as Record<string, any>, "avgOvernightHrv", "avgHrv", "averageHrv");
+  const hrvStatus = getValue(sleepData as Record<string, any>, "hrvStatus");
+  const bodyBatteryLatest = Array.isArray((sleepData as Record<string, any>).sleepBodyBattery)
+    ? getValue((sleepData as Record<string, any>).sleepBodyBattery.slice(-1)[0], "value", "battery")
+    : null;
+  const bodyBatteryChange = getValue(sleepData as Record<string, any>, "bodyBatteryChange");
+  const stressValue = getValue(sleepData as Record<string, any>, "avgSleepStress", "stress", "sleepStress");
 
-  return { score, duration, quality, raw: sleepData };
+  return {
+    score,
+    duration,
+    quality,
+    hrvValue,
+    hrvStatus,
+    bodyBatteryLatest,
+    bodyBatteryChange,
+    stressValue,
+    raw: sleepData,
+  };
 };
 
 const extractHeartRate = (heartRateData: unknown) => {
@@ -91,6 +118,17 @@ const extractHRZones = (activity: unknown) => {
   }).filter((zone) => zone !== null) as Array<Record<string, unknown>>;
 };
 
+const safeFetch = async <T>(label: string, fetcher: () => Promise<T>) => {
+  try {
+    const data = await fetcher();
+    return { data, error: null };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    console.warn(`[Garmin] ${label} failed: ${message}`);
+    return { data: null, error: message };
+  }
+};
+
 const fetchGarminData = async () => {
   const username = process.env.GARMIN_EMAIL;
   const password = process.env.GARMIN_PASSWORD;
@@ -103,9 +141,14 @@ const fetchGarminData = async () => {
   await client.login();
 
   const today = parseDate(0);
-  const activities = (await client.getActivities(0, 30)) ?? [];
-  const sleepData = await client.getSleepData(today);
-  const heartRateData = await client.getHeartRate(today);
+
+  const activitiesResult = await safeFetch("activities", () => client.getActivities(0, 30));
+  const sleepResult = await safeFetch("sleepData", () => client.getSleepData(today));
+  const heartRateResult = await safeFetch("heartRateData", () => client.getHeartRate(today));
+
+  const activities = (activitiesResult.data ?? []) as unknown[];
+  const sleepData = sleepResult.data;
+  const heartRateData = heartRateResult.data;
 
   const sleepPayload = extractSleep(sleepData);
   const heartRatePayload = extractHeartRate(heartRateData);
@@ -113,12 +156,19 @@ const fetchGarminData = async () => {
   const lastActivity = Array.isArray(activities) && activities.length ? activities[0] : null;
   const hrZonesPayload = extractHRZones(lastActivity);
 
+  const hrvValue = sleepPayload.hrvValue ?? null;
+  const hrvStatus = sleepPayload.hrvStatus ?? null;
+  const bodyBatteryLatest = sleepPayload.bodyBatteryLatest ?? null;
+  const bodyBatteryChange = sleepPayload.bodyBatteryChange ?? null;
+  const stressValue = sleepPayload.stressValue ?? null;
+  const stressMax = null;
+
   return {
     fetchedAt: new Date().toISOString().slice(0, 10),
     hrv: {
-      value: null,
-      status: null,
-      raw: null,
+      value: hrvValue,
+      status: hrvStatus,
+      raw: sleepPayload.raw,
     },
     sleep: {
       score: sleepPayload.score,
@@ -127,13 +177,14 @@ const fetchGarminData = async () => {
       raw: sleepPayload.raw,
     },
     bodyBattery: {
-      latest: null,
-      raw: null,
+      latest: bodyBatteryLatest,
+      change: bodyBatteryChange,
+      raw: sleepPayload.raw,
     },
     stress: {
-      value: null,
-      max: null,
-      raw: null,
+      value: stressValue,
+      max: stressMax,
+      raw: sleepPayload.raw,
     },
     restingHeartRate: {
       value: heartRatePayload.value,
