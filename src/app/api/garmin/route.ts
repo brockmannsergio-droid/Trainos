@@ -144,13 +144,61 @@ const safeFetch = async <T>(label: string, fetcher: () => Promise<T>) => {
   }
 };
 
+const isValidResponse = (response: unknown) => {
+  if (response === null || response === undefined) return false;
+  if (Array.isArray(response)) return response.length > 0;
+  if (typeof response === "object") return Object.keys(response as Record<string, unknown>).length > 0;
+  return true;
+};
+
+const extractLatestResponseValue = (response: unknown, ...keys: string[]) => {
+  if (Array.isArray(response)) {
+    return getNumberValue(getLastArrayItem(response) as Record<string, any>, ...keys);
+  }
+  return getNumberValue(response as Record<string, any>, ...keys);
+};
+
+const tryClientMethods = async (client: GarminConnect, label: string, methods: Array<{ name: string; args: unknown[] }>) => {
+  const rawClient: any = client as any;
+  for (const method of methods) {
+    const fn = rawClient[method.name];
+    if (typeof fn !== "function") continue;
+
+    try {
+      const result = await fn.apply(rawClient, method.args);
+      console.log(`[Garmin] ${label} ${method.name} returned:`, result);
+      if (isValidResponse(result)) return result;
+    } catch (error) {
+      console.warn(`[Garmin] ${label} ${method.name} failed:`, error);
+    }
+  }
+  return null;
+};
+
+const tryRawEndpoints = async (client: GarminConnect, label: string, endpoints: string[], params: Record<string, string>) => {
+  const rawClient: any = client as any;
+  const wellnessBase = ((client as any).url?.GC_API as string) ?? "https://connectapi.garmin.com";
+
+  for (const endpoint of endpoints) {
+    const url = endpoint.startsWith("http") ? endpoint : `${wellnessBase}${endpoint}`;
+    try {
+      const result = await rawClient.get(url, { params });
+      console.log(`[Garmin] ${label} raw endpoint ${url} returned:`, result);
+      if (isValidResponse(result)) return result;
+    } catch (error) {
+      console.warn(`[Garmin] ${label} raw endpoint ${url} failed:`, error);
+    }
+  }
+  return null;
+};
+
 const extractBodyBattery = (bodyBatteryData: unknown, sleepPayload: ReturnType<typeof extractSleep>) => {
-  if (!bodyBatteryData || typeof bodyBatteryData !== "object") {
+  if (!isValidResponse(bodyBatteryData)) {
     return sleepPayload.bodyBatteryLatest;
   }
 
   const lastEntry = getLastArrayItem(bodyBatteryData);
-  const lastValue = getNumberValue(lastEntry as Record<string, any>, "value", "battery", "bodyBattery", "charged");
+  const lastValue = extractLatestResponseValue(lastEntry, "value", "battery", "bodyBattery", "charged");
   if (lastValue != null) return lastValue;
 
   const statsList = getLastArrayItem(
@@ -160,41 +208,81 @@ const extractBodyBattery = (bodyBatteryData: unknown, sleepPayload: ReturnType<t
       (bodyBatteryData as Record<string, any>).data
   );
 
-  return getNumberValue(statsList as Record<string, any>, "value", "battery", "bodyBattery", "charged") ?? sleepPayload.bodyBatteryLatest;
+  return extractLatestResponseValue(statsList, "value", "battery", "bodyBattery", "charged") ?? sleepPayload.bodyBatteryLatest;
 };
 
 const fetchBodyBatteryData = async (client: GarminConnect, today: Date, sevenDaysAgo: Date) => {
-  const wellnessBase = ((client as any).url?.GC_API as string) ?? "https://connectapi.garmin.com";
-  const rawClient: any = client as any;
+  const methodResult = await tryClientMethods(client, "bodyBattery", [
+    { name: "getBodyBattery", args: [sevenDaysAgo, today] },
+    { name: "getBodyBattery", args: [today] },
+    { name: "getDailyStats", args: [today] },
+    { name: "getWellnessData", args: [today] },
+  ]);
+  if (methodResult != null) return methodResult;
 
-  if (typeof rawClient.getBodyBattery === "function") {
-    try {
-      return await rawClient.getBodyBattery(today);
-    } catch {
-      try {
-        return await rawClient.getBodyBattery(sevenDaysAgo, today);
-      } catch (error) {
-        console.warn("[Garmin] getBodyBattery fallback failed:", error);
-      }
-    }
-  }
+  const endpoints = [
+    "/wellness-service/wellness/dailyBodyBattery",
+    "/wellness-service/wellness/dailyWellness",
+    "/wellness-service/wellness/dailyWellnessData",
+    "/wellness-service/wellness/dailyBodyBatteryForDate",
+  ];
 
-  try {
-    return await rawClient.get(`${wellnessBase}/wellness-service/wellness/dailyBodyBattery`, {
-      params: { date: toDateString(today) },
-    });
-  } catch (singleDateError) {
-    console.warn("[Garmin] dailyBodyBattery single-date fetch failed:", singleDateError);
-  }
+  const rawResult = await tryRawEndpoints(client, "bodyBattery", endpoints, {
+    date: toDateString(today),
+    startDate: toDateString(sevenDaysAgo),
+    endDate: toDateString(today),
+  });
+  return rawResult;
+};
 
-  try {
-    return await rawClient.get(`${wellnessBase}/wellness-service/wellness/dailyBodyBattery`, {
-      params: { startDate: toDateString(sevenDaysAgo), endDate: toDateString(today) },
-    });
-  } catch (rangeError) {
-    console.warn("[Garmin] dailyBodyBattery range fetch failed:", rangeError);
-    throw rangeError;
-  }
+const fetchVo2MaxData = async (client: GarminConnect, today: Date) => {
+  const methodResult = await tryClientMethods(client, "vo2Max", [
+    { name: "getMaxMetrics", args: [today] },
+    { name: "getVO2MaxTracking", args: [] },
+    { name: "getPerformanceMetrics", args: [today] },
+  ]);
+  if (methodResult != null) return methodResult;
+
+  const endpoints = [
+    "/wellness-service/wellness/dailyVO2Max",
+    "/wellness-service/wellness/maxMetrics",
+    "/wellness-service/wellness/performanceMetrics",
+    "/wellness-service/wellness/dailyPerformance",
+  ];
+
+  return await tryRawEndpoints(client, "vo2Max", endpoints, { date: toDateString(today) });
+};
+
+const fetchTrainingReadinessData = async (client: GarminConnect, today: Date) => {
+  const methodResult = await tryClientMethods(client, "trainingReadiness", [
+    { name: "getTrainingReadiness", args: [today] },
+    { name: "getTrainingStatus", args: [today] },
+  ]);
+  if (methodResult != null) return methodResult;
+
+  const endpoints = [
+    "/wellness-service/wellness/trainingReadiness",
+    "/wellness-service/wellness/trainingStatus",
+    "/wellness-service/wellness/dailyTrainingStatus",
+  ];
+
+  return await tryRawEndpoints(client, "trainingReadiness", endpoints, { date: toDateString(today) });
+};
+
+const fetchTrainingLoadData = async (client: GarminConnect, today: Date) => {
+  const methodResult = await tryClientMethods(client, "trainingLoad", [
+    { name: "getTrainingLoad", args: [today] },
+    { name: "getTrainingStatus", args: [today] },
+  ]);
+  if (methodResult != null) return methodResult;
+
+  const endpoints = [
+    "/wellness-service/wellness/trainingLoad",
+    "/wellness-service/wellness/dailyTrainingLoad",
+    "/wellness-service/wellness/trainingStatus",
+  ];
+
+  return await tryRawEndpoints(client, "trainingLoad", endpoints, { date: toDateString(today) });
 };
 
 const fetchGarminData = async () => {
@@ -214,15 +302,24 @@ const fetchGarminData = async () => {
   const activitiesResult = await safeFetch("activities", () => client.getActivities(0, 30));
   const sleepResult = await safeFetch("sleepData", () => client.getSleepData(today));
   const bodyBatteryResult = await safeFetch("bodyBatteryData", () => fetchBodyBatteryData(client, today, sevenDaysAgo));
+  const vo2MaxResult = await safeFetch("vo2MaxData", () => fetchVo2MaxData(client, today));
+  const trainingReadinessResult = await safeFetch("trainingReadinessData", () => fetchTrainingReadinessData(client, today));
+  const trainingLoadResult = await safeFetch("trainingLoadData", () => fetchTrainingLoadData(client, today));
   const heartRateResult = await safeFetch("heartRateData", () => client.getHeartRate(today));
 
   const activities = (activitiesResult.data ?? []) as unknown[];
   const sleepData = sleepResult.data;
   const bodyBatteryData = bodyBatteryResult.data;
+  const vo2MaxData = vo2MaxResult.data;
+  const trainingReadinessData = trainingReadinessResult.data;
+  const trainingLoadData = trainingLoadResult.data;
   const heartRateData = heartRateResult.data;
 
   console.log("[Garmin] raw sleepData:", sleepData);
   console.log("[Garmin] raw bodyBatteryData:", bodyBatteryData);
+  console.log("[Garmin] raw vo2MaxData:", vo2MaxData);
+  console.log("[Garmin] raw trainingReadinessData:", trainingReadinessData);
+  console.log("[Garmin] raw trainingLoadData:", trainingLoadData);
 
   const sleepPayload = extractSleep(sleepData);
   const heartRatePayload = extractHeartRate(heartRateData);
@@ -237,6 +334,19 @@ const fetchGarminData = async () => {
 
   const stressValue = sleepPayload.stressValue ?? null;
   const stressMax = null;
+
+  const vo2MaxValue = extractLatestResponseValue(vo2MaxData, "value", "vo2Max", "vo2MaxValue", "maxVo2", "vo2");
+  const vo2MaxTrend = getValue(vo2MaxData as Record<string, any>, "trend", "trendDirection", "status");
+  const vo2MaxAvailable = vo2MaxValue != null;
+
+  const trainingReadinessScore = extractLatestResponseValue(trainingReadinessData, "score", "trainingReadiness", "value", "readiness");
+  const trainingReadinessStatus = getValue(trainingReadinessData as Record<string, any>, "status", "trainingStatus", "readinessStatus", "state");
+  const trainingReadinessAvailable = trainingReadinessScore != null || trainingReadinessStatus != null;
+
+  const trainingLoadCurrent = extractLatestResponseValue(trainingLoadData, "current", "value", "trainingLoad", "load", "todayLoad");
+  const trainingLoadWeekly = extractLatestResponseValue(trainingLoadData, "weekly", "weeklyLoad", "loadWeekly", "weekLoad");
+  const trainingLoadTrend = getValue(trainingLoadData as Record<string, any>, "trend", "trendDirection", "status");
+  const trainingLoadAvailable = trainingLoadCurrent != null || trainingLoadWeekly != null;
 
   return {
     fetchedAt: new Date().toISOString().slice(0, 10),
@@ -267,23 +377,23 @@ const fetchGarminData = async () => {
       raw: heartRateData,
     },
     vo2Max: {
-      value: null,
-      trend: null,
-      available: false,
-      raw: null,
+      value: vo2MaxValue,
+      trend: vo2MaxTrend ?? null,
+      available: vo2MaxAvailable,
+      raw: vo2MaxData,
     },
     trainingReadiness: {
-      score: null,
-      status: null,
-      available: false,
-      raw: null,
+      score: trainingReadinessScore,
+      status: trainingReadinessStatus ?? null,
+      available: trainingReadinessAvailable,
+      raw: trainingReadinessData,
     },
     trainingLoad: {
-      current: null,
-      weekly: null,
-      trend: null,
-      available: false,
-      raw: null,
+      current: trainingLoadCurrent,
+      weekly: trainingLoadWeekly,
+      trend: trainingLoadTrend ?? null,
+      available: trainingLoadAvailable,
+      raw: trainingLoadData,
     },
     weeklySummary: {
       totalDistance: weeklySummaryPayload.totalDistance,
