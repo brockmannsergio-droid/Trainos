@@ -1,60 +1,34 @@
 import { NextResponse } from "next/server";
-import { execFile } from "child_process";
-import { promisify } from "util";
-import path from "path";
 
-const execFileAsync = promisify(execFile);
-
+// Proxy to Python serverless function that runs the Garmin fetch logic.
+// On Vercel the Python function is available at /api/garmin_func; in
+// development we call the local dev server.
 export async function GET() {
-  const { GARMIN_EMAIL, GARMIN_PASSWORD } = process.env;
-
-  if (!GARMIN_EMAIL || !GARMIN_PASSWORD) {
-    return NextResponse.json(
-      {
-        error:
-          "Missing Garmin credentials. Add GARMIN_EMAIL and GARMIN_PASSWORD to .env.local and restart the Next.js server.",
-      },
-      { status: 500 }
-    );
-  }
-
-  const scriptPath = path.resolve(process.cwd(), "scripts", "garmin_fetch.py");
-
   try {
-    const { stdout, stderr } = await execFileAsync("python3", [scriptPath], {
-      env: {
-        ...process.env,
-        GARMIN_EMAIL,
-        GARMIN_PASSWORD,
-      },
-      timeout: 30000,
-      maxBuffer: 10 * 1024 * 1024,
+    const base = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `http://localhost:${process.env.PORT ?? 3000}`;
+    const url = `${base}/api/garmin_func`;
+
+    const resp = await fetch(url, {
+      method: "GET",
+      headers: { "x-internal-proxy": "1" },
     });
 
-    // Log stderr for debugging
-    if (stderr) {
-      console.error("[Garmin API Debug]", stderr);
+    const text = await resp.text();
+
+    let data: any = null;
+    try {
+      data = JSON.parse(text);
+    } catch (err) {
+      return NextResponse.json({ error: "Invalid JSON response from Python function." }, { status: 502 });
     }
 
-    if (stderr) {
-      try {
-        const errorPayload = JSON.parse(stderr);
-        if (errorPayload?.error) {
-          return NextResponse.json({ error: errorPayload.error }, { status: 500 });
-        }
-      } catch {
-        // ignore non-json stderr
-      }
-    }
-
-    const data = JSON.parse(stdout);
-    if (data?.error) {
-      return NextResponse.json({ error: data.error }, { status: 500 });
+    if (!resp.ok) {
+      return NextResponse.json({ error: data?.error || 'Python function error' }, { status: resp.status });
     }
 
     return NextResponse.json(data);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error while running Garmin fetch script.";
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

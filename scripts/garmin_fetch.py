@@ -347,140 +347,11 @@ def compute_trend_indicator(current_vo2: object | None, current_load: object | N
 
 
 def main() -> int:
-    username, password = get_credentials()
-    if not username or not password:
-        print(
-            json.dumps(
-                {
-                    "error": "Missing Garmin credentials. Set GARMIN_EMAIL and GARMIN_PASSWORD in .env.local or export them as environment variables."
-                }
-            ),
-            file=sys.stderr,
-        )
-        return 1
-
+    # keep main small; actual fetching logic moved to fetch_garmin_data
     try:
-        client = Garmin(username, password)
-        client.login()
-
-        end_date = date.today()
-        start_date = end_date - timedelta(days=6)
-
-        hrv_data = client.get_hrv_data(get_date_string(0))
-        sleep_data = client.get_sleep_data(get_date_string(0))
-        stress_data = client.get_stress_data(get_date_string(0))
-        body_battery_data = client.get_body_battery(
-            start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d")
-        )
-        activities = client.get_activities(start=0, limit=30)
-        
-        # Try multiple fallback methods for each metric
-        resting_hr_data = safe_get(client, "get_resting_heart_rate", get_date_string(0))
-        if not resting_hr_data:
-            print("DEBUG: get_resting_heart_rate returned None, trying get_heart_rates", file=sys.stderr)
-            resting_hr_data = safe_get(client, "get_heart_rates", get_date_string(0))
-        
-        vo2max_data = safe_get(client, "get_max_metrics", get_date_string(0))
-        if not vo2max_data:
-            print("DEBUG: get_max_metrics returned None, trying get_fitnessAge", file=sys.stderr)
-            vo2max_data = safe_get(client, "get_fitnessAge", get_date_string(0))
-        
-        training_readiness_data = safe_get(client, "get_training_readiness", get_date_string(0))
-        training_load_data = safe_get(client, "get_training_load", get_date_string(0))
-        prior_vo2max_data = safe_get(client, "get_max_metrics", get_date_string(7))
-        if not prior_vo2max_data:
-            print("DEBUG: prior get_max_metrics returned None, trying get_fitnessAge", file=sys.stderr)
-            prior_vo2max_data = safe_get(client, "get_fitnessAge", get_date_string(7))
-        prior_training_load_data = safe_get(client, "get_training_load", get_date_string(7))
-
-        # Comprehensive debug logging
-        print(f"DEBUG: [HRV] {json.dumps(hrv_data, default=str)[:500]}", file=sys.stderr)
-        print(f"DEBUG: [Sleep] {json.dumps(sleep_data, default=str)[:500]}", file=sys.stderr)
-        print(f"DEBUG: [Stress] {json.dumps(stress_data, default=str)[:500]}", file=sys.stderr)
-        print(f"DEBUG: [BodyBattery] {json.dumps(body_battery_data, default=str)[:500]}", file=sys.stderr)
-        print(f"DEBUG: [RestingHR] {json.dumps(resting_hr_data, default=str)[:500]}", file=sys.stderr)
-        print(f"DEBUG: [VO2max] {json.dumps(vo2max_data, default=str)[:500]}", file=sys.stderr)
-        print(f"DEBUG: [TrainingReadiness] {json.dumps(training_readiness_data, default=str)[:500]}", file=sys.stderr)
-        print(f"DEBUG: [TrainingLoad] {json.dumps(training_load_data, default=str)[:500]}", file=sys.stderr)
-        print(f"DEBUG: [PriorVO2max] {json.dumps(prior_vo2max_data, default=str)[:500]}", file=sys.stderr)
-        print(f"DEBUG: [PriorTrainingLoad] {json.dumps(prior_training_load_data, default=str)[:500]}", file=sys.stderr)
-        print(f"DEBUG: [Activities] Fetched {len(activities) if isinstance(activities, list) else 0} activities", file=sys.stderr)
-
-        hrv_payload = extract_hrv(hrv_data)
-        sleep_payload = extract_sleep(sleep_data)
-        body_battery_payload = extract_body_battery(body_battery_data)
-        stress_payload = extract_stress(stress_data)
-        resting_hr_payload = extract_resting_heart_rate(resting_hr_data)
-        vo2max_payload = extract_vo2max(vo2max_data)
-        training_readiness_payload = extract_training_readiness(training_readiness_data)
-        training_load_payload = extract_training_load(training_load_data)
-        prior_vo2max_payload = extract_vo2max(prior_vo2max_data)
-        prior_training_load_payload = extract_training_load(prior_training_load_data)
-        last_activity = activities[0] if isinstance(activities, list) and activities else None
-        hr_zones_payload = extract_activity_hr_zones(last_activity)
-        weekly_summary_payload = extract_weekly_summary(activities)
-        trend = compute_trend_indicator(vo2max_payload.get("value"), training_load_payload.get("weekly"), prior_vo2max_payload.get("value"), prior_training_load_payload.get("weekly"))
-
-        output = {
-            "fetchedAt": date.today().isoformat(),
-            "hrv": {
-                "value": hrv_payload["value"],
-                "status": hrv_payload["status"],
-                "raw": hrv_data,
-            },
-            "sleep": {
-                "score": sleep_payload["score"],
-                "duration": sleep_payload["duration"],
-                "quality": sleep_payload["quality"],
-                "raw": sleep_data,
-            },
-            "bodyBattery": {
-                "latest": body_battery_payload["latest"],
-                "raw": body_battery_data,
-            },
-            "stress": {
-                "value": stress_payload["value"],
-                "max": stress_payload["max"],
-                "raw": stress_data,
-            },
-            "restingHeartRate": {
-                "value": resting_hr_payload["value"],
-                "available": resting_hr_payload["available"],
-                "raw": resting_hr_data,
-            },
-            "vo2Max": {
-                "value": vo2max_payload["value"],
-                "trend": vo2max_payload["trend"],
-                "available": vo2max_payload["available"],
-                "raw": vo2max_data,
-            },
-            "trainingReadiness": {
-                "score": training_readiness_payload["score"],
-                "status": training_readiness_payload["status"],
-                "available": training_readiness_payload["available"],
-                "raw": training_readiness_data,
-            },
-            "trainingLoad": {
-                "current": training_load_payload["current"],
-                "weekly": training_load_payload["weekly"],
-                "trend": training_load_payload["trend"],
-                "available": training_load_payload["available"],
-                "raw": training_load_data,
-            },
-            "weeklySummary": {
-                "totalDistance": weekly_summary_payload["totalDistance"],
-                "totalTime": weekly_summary_payload["totalTime"],
-                "totalElevation": weekly_summary_payload["totalElevation"],
-                "raw": weekly_summary_payload["raw"],
-            },
-            "trendIndicator": trend,
-            "heartRateZones": hr_zones_payload,
-            "activities": activities,
-        }
-
-        print(json.dumps(output, default=str))
+        data = fetch_garmin_data()
+        print(json.dumps(data, default=str))
         return 0
-
     except GarminConnectAuthenticationError as auth_exc:
         print(json.dumps({"error": "Authentication failed: " + str(auth_exc)}), file=sys.stderr)
         return 1
@@ -490,6 +361,144 @@ def main() -> int:
     except Exception as exc:
         print(json.dumps({"error": str(exc)}), file=sys.stderr)
         return 1
+
+
+def fetch_garmin_data() -> dict:
+    """Run the Garmin fetch logic and return the result as a Python dict.
+
+    This is a programmatic wrapper around the previous `main` body so
+    serverless environments can import and call it directly.
+    """
+    username, password = get_credentials()
+    if not username or not password:
+        raise GarminConnectAuthenticationError(
+            "Missing Garmin credentials. Set GARMIN_EMAIL and GARMIN_PASSWORD in the environment."
+        )
+
+    client = Garmin(username, password)
+    client.login()
+
+    end_date = date.today()
+    start_date = end_date - timedelta(days=6)
+
+    hrv_data = client.get_hrv_data(get_date_string(0))
+    sleep_data = client.get_sleep_data(get_date_string(0))
+    stress_data = client.get_stress_data(get_date_string(0))
+    body_battery_data = client.get_body_battery(
+        start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d")
+    )
+    activities = client.get_activities(start=0, limit=30)
+
+    # Try multiple fallback methods for each metric
+    resting_hr_data = safe_get(client, "get_resting_heart_rate", get_date_string(0))
+    if not resting_hr_data:
+        print("DEBUG: get_resting_heart_rate returned None, trying get_heart_rates", file=sys.stderr)
+        resting_hr_data = safe_get(client, "get_heart_rates", get_date_string(0))
+
+    vo2max_data = safe_get(client, "get_max_metrics", get_date_string(0))
+    if not vo2max_data:
+        print("DEBUG: get_max_metrics returned None, trying get_fitnessAge", file=sys.stderr)
+        vo2max_data = safe_get(client, "get_fitnessAge", get_date_string(0))
+
+    training_readiness_data = safe_get(client, "get_training_readiness", get_date_string(0))
+    training_load_data = safe_get(client, "get_training_load", get_date_string(0))
+    prior_vo2max_data = safe_get(client, "get_max_metrics", get_date_string(7))
+    if not prior_vo2max_data:
+        print("DEBUG: prior get_max_metrics returned None, trying get_fitnessAge", file=sys.stderr)
+        prior_vo2max_data = safe_get(client, "get_fitnessAge", get_date_string(7))
+    prior_training_load_data = safe_get(client, "get_training_load", get_date_string(7))
+
+    # Comprehensive debug logging
+    print(f"DEBUG: [HRV] {json.dumps(hrv_data, default=str)[:500]}", file=sys.stderr)
+    print(f"DEBUG: [Sleep] {json.dumps(sleep_data, default=str)[:500]}", file=sys.stderr)
+    print(f"DEBUG: [Stress] {json.dumps(stress_data, default=str)[:500]}", file=sys.stderr)
+    print(f"DEBUG: [BodyBattery] {json.dumps(body_battery_data, default=str)[:500]}", file=sys.stderr)
+    print(f"DEBUG: [RestingHR] {json.dumps(resting_hr_data, default=str)[:500]}", file=sys.stderr)
+    print(f"DEBUG: [VO2max] {json.dumps(vo2max_data, default=str)[:500]}", file=sys.stderr)
+    print(f"DEBUG: [TrainingReadiness] {json.dumps(training_readiness_data, default=str)[:500]}", file=sys.stderr)
+    print(f"DEBUG: [TrainingLoad] {json.dumps(training_load_data, default=str)[:500]}", file=sys.stderr)
+    print(f"DEBUG: [PriorVO2max] {json.dumps(prior_vo2max_data, default=str)[:500]}", file=sys.stderr)
+    print(f"DEBUG: [PriorTrainingLoad] {json.dumps(prior_training_load_data, default=str)[:500]}", file=sys.stderr)
+    print(f"DEBUG: [Activities] Fetched {len(activities) if isinstance(activities, list) else 0} activities", file=sys.stderr)
+
+    hrv_payload = extract_hrv(hrv_data)
+    sleep_payload = extract_sleep(sleep_data)
+    body_battery_payload = extract_body_battery(body_battery_data)
+    stress_payload = extract_stress(stress_data)
+    resting_hr_payload = extract_resting_heart_rate(resting_hr_data)
+    vo2max_payload = extract_vo2max(vo2max_data)
+    training_readiness_payload = extract_training_readiness(training_readiness_data)
+    training_load_payload = extract_training_load(training_load_data)
+    prior_vo2max_payload = extract_vo2max(prior_vo2max_data)
+    prior_training_load_payload = extract_training_load(prior_training_load_data)
+    last_activity = activities[0] if isinstance(activities, list) and activities else None
+    hr_zones_payload = extract_activity_hr_zones(last_activity)
+    weekly_summary_payload = extract_weekly_summary(activities)
+    trend = compute_trend_indicator(
+        vo2max_payload.get("value"),
+        training_load_payload.get("weekly"),
+        prior_vo2max_payload.get("value"),
+        prior_training_load_payload.get("weekly"),
+    )
+
+    output = {
+        "fetchedAt": date.today().isoformat(),
+        "hrv": {
+            "value": hrv_payload["value"],
+            "status": hrv_payload["status"],
+            "raw": hrv_data,
+        },
+        "sleep": {
+            "score": sleep_payload["score"],
+            "duration": sleep_payload["duration"],
+            "quality": sleep_payload["quality"],
+            "raw": sleep_data,
+        },
+        "bodyBattery": {
+            "latest": body_battery_payload["latest"],
+            "raw": body_battery_data,
+        },
+        "stress": {
+            "value": stress_payload["value"],
+            "max": stress_payload["max"],
+            "raw": stress_data,
+        },
+        "restingHeartRate": {
+            "value": resting_hr_payload["value"],
+            "available": resting_hr_payload["available"],
+            "raw": resting_hr_data,
+        },
+        "vo2Max": {
+            "value": vo2max_payload["value"],
+            "trend": vo2max_payload["trend"],
+            "available": vo2max_payload["available"],
+            "raw": vo2max_data,
+        },
+        "trainingReadiness": {
+            "score": training_readiness_payload["score"],
+            "status": training_readiness_payload["status"],
+            "available": training_readiness_payload["available"],
+            "raw": training_readiness_data,
+        },
+        "trainingLoad": {
+            "current": training_load_payload["current"],
+            "weekly": training_load_payload["weekly"],
+            "trend": training_load_payload["trend"],
+            "available": training_load_payload["available"],
+            "raw": training_load_data,
+        },
+        "weeklySummary": {
+            "totalDistance": weekly_summary_payload["totalDistance"],
+            "totalTime": weekly_summary_payload["totalTime"],
+            "totalElevation": weekly_summary_payload["totalElevation"],
+            "raw": weekly_summary_payload["raw"],
+        },
+        "trendIndicator": trend,
+        "heartRateZones": hr_zones_payload,
+        "activities": activities,
+    }
+
+    return output
 
 
 if __name__ == "__main__":
