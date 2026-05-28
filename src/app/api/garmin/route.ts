@@ -151,11 +151,28 @@ const isValidResponse = (response: unknown) => {
   return true;
 };
 
+const fetchTrainingMetrics = async () => {
+  const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000";
+  const url = `${baseUrl}/api/garmin/training`;
+  const response = await fetch(url, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Training metrics fetch failed with ${response.status}`);
+  }
+  return await response.json();
+};
+
 const extractLatestResponseValue = (response: unknown, ...keys: string[]) => {
   if (Array.isArray(response)) {
     return getNumberValue(getLastArrayItem(response) as Record<string, any>, ...keys);
   }
   return getNumberValue(response as Record<string, any>, ...keys);
+};
+
+const extractLatestResponseField = (response: unknown, ...keys: string[]) => {
+  if (Array.isArray(response)) {
+    return getValue(getLastArrayItem(response) as Record<string, any>, ...keys);
+  }
+  return getValue(response as Record<string, any>, ...keys);
 };
 
 const getEntryTimestamp = (entry: Record<string, any>) => {
@@ -349,14 +366,16 @@ const fetchGarminData = async () => {
   const vo2MaxResult = await safeFetch("vo2MaxData", () => fetchVo2MaxData(client, today));
   const trainingReadinessResult = await safeFetch("trainingReadinessData", () => fetchTrainingReadinessData(client, today));
   const trainingLoadResult = await safeFetch("trainingLoadData", () => fetchTrainingLoadData(client, today));
+  const trainingMetricsResult = await safeFetch("trainingMetricsData", () => fetchTrainingMetrics());
   const heartRateResult = await safeFetch("heartRateData", () => client.getHeartRate(today));
 
   const activities = (activitiesResult.data ?? []) as unknown[];
   const sleepData = sleepResult.data;
   const bodyBatteryData = bodyBatteryResult.data;
   const vo2MaxData = vo2MaxResult.data;
-  const trainingReadinessData = trainingReadinessResult.data;
-  const trainingLoadData = trainingLoadResult.data;
+  const trainingReadinessData = trainingMetricsResult.data?.training_readiness?.data ?? trainingReadinessResult.data;
+  const trainingLoadData = trainingMetricsResult.data?.training_status?.data ?? trainingLoadResult.data;
+  const trainingMetricsRaw = trainingMetricsResult.data ?? null;
   const heartRateData = heartRateResult.data;
 
   console.log("[Garmin] raw sleepData:", sleepData);
@@ -393,13 +412,17 @@ const fetchGarminData = async () => {
   const vo2MaxAvailable = vo2MaxValue != null;
 
   const trainingReadinessScore = extractLatestResponseValue(trainingReadinessData, "score", "trainingReadiness", "value", "readiness");
-  const trainingReadinessStatus = getValue(trainingReadinessData as Record<string, any>, "status", "trainingStatus", "readinessStatus", "state");
+  const trainingReadinessStatus = extractLatestResponseField(trainingReadinessData, "level", "status", "trainingStatus", "readinessStatus", "state");
   const trainingReadinessAvailable = trainingReadinessScore != null || trainingReadinessStatus != null;
 
-  const trainingLoadCurrent = extractLatestResponseValue(trainingLoadData, "current", "value", "trainingLoad", "load", "todayLoad");
-  const trainingLoadWeekly = extractLatestResponseValue(trainingLoadData, "weekly", "weeklyLoad", "loadWeekly", "weekLoad");
+  const firstTrainingStatusData = (trainingLoadData as Record<string, any>)?.mostRecentTrainingStatus?.latestTrainingStatusData;
+  const trainingStatusDevice = firstTrainingStatusData && typeof firstTrainingStatusData === "object" ? Object.values(firstTrainingStatusData)[0] : null;
+  const acuteTrainingLoadSource = (trainingStatusDevice as Record<string, any>)?.acuteTrainingLoadDTO ?? trainingStatusDevice;
+  const trainingLoadAcute = getNumberValue(acuteTrainingLoadSource as Record<string, any>, "dailyTrainingLoadAcute", "acuteLoad", "trainingLoad", "load", "dailyTrainingLoad");
+  const trainingLoadChronic = getNumberValue(acuteTrainingLoadSource as Record<string, any>, "dailyTrainingLoadChronic", "chronicLoad", "maxTrainingLoadChronic", "dailyTrainingLoadChronic");
+  const trainingLoadWeekly = getNumberValue(trainingStatusDevice as Record<string, any>, "weeklyTrainingLoad", "weeklyLoad", "loadWeekly", "weekLoad");
   const trainingLoadTrend = getValue(trainingLoadData as Record<string, any>, "trend", "trendDirection", "status");
-  const trainingLoadAvailable = trainingLoadCurrent != null || trainingLoadWeekly != null;
+  const trainingLoadAvailable = trainingLoadAcute != null || trainingLoadChronic != null || trainingLoadWeekly != null;
 
   return {
     fetchedAt: new Date().toISOString().slice(0, 10),
@@ -449,14 +472,15 @@ const fetchGarminData = async () => {
       score: trainingReadinessScore,
       status: trainingReadinessStatus ?? null,
       available: trainingReadinessAvailable,
-      raw: trainingReadinessData,
+      raw: trainingMetricsRaw ?? trainingReadinessData,
     },
     trainingLoad: {
-      current: trainingLoadCurrent,
+      acute: trainingLoadAcute,
+      chronic: trainingLoadChronic,
       weekly: trainingLoadWeekly,
       trend: trainingLoadTrend ?? null,
       available: trainingLoadAvailable,
-      raw: trainingLoadData,
+      raw: trainingMetricsRaw ?? trainingLoadData,
     },
     weeklySummary: {
       totalDistance: weeklySummaryPayload.totalDistance,

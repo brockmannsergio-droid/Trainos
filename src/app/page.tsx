@@ -12,7 +12,7 @@ type GarminData = {
   vo2MaxRunning?: { value?: number | string | null; available?: boolean; raw?: Record<string, unknown> };
   vo2MaxCycling?: { value?: number | string | null; available?: boolean; raw?: Record<string, unknown> };
   trainingReadiness?: { score?: number | string | null; status?: string | null; available?: boolean; raw?: Record<string, unknown> };
-  trainingLoad?: { current?: number | string | null; weekly?: number | string | null; trend?: string | null; available?: boolean; raw?: Record<string, unknown> };
+  trainingLoad?: { acute?: number | string | null; chronic?: number | string | null; weekly?: number | string | null; trend?: string | null; available?: boolean; raw?: Record<string, unknown> };
   weeklySummary?: { totalDistance?: number | null; totalTime?: number | null; totalElevation?: number | null; raw?: Record<string, unknown> };
   heartRateZones?: Array<{ label?: string | null; min?: number | string | null; max?: number | string | null; time?: number | string | null; raw?: Record<string, unknown> }>;
   trendIndicator?: string | null;
@@ -101,11 +101,12 @@ const getTrainingReadinessValue = (readiness?: { score?: number | string | null;
   return "—";
 };
 
-const getTrainingLoadValue = (trainingLoad?: { weekly?: number | string | null; available?: boolean }) => {
+const getTrainingLoadValue = (trainingLoad?: { acute?: number | string | null; chronic?: number | string | null; weekly?: number | string | null; available?: boolean }) => {
   if (!trainingLoad) return "—";
   if (trainingLoad.available === false) return "N/A";
-  if (trainingLoad.weekly == null) return "—";
-  return String(trainingLoad.weekly);
+  const acute = trainingLoad.acute != null ? String(trainingLoad.acute) : "—";
+  const chronic = trainingLoad.chronic != null ? String(trainingLoad.chronic) : "—";
+  return `${acute} / ${chronic}`;
 };
 
 const formatElevation = (meters: number | string | undefined) => {
@@ -196,26 +197,6 @@ export default function Home() {
         data?.vo2MaxCycling?.available === false
           ? "N/A for this device"
           : "Cycling VO2max estimate",
-    },
-    {
-      label: "Training readiness",
-      value: getTrainingReadinessValue(data?.trainingReadiness),
-      helper:
-        data?.trainingReadiness?.available === false
-          ? "N/A for this device"
-          : data?.trainingReadiness?.status
-          ? String(data.trainingReadiness.status)
-          : "Recovery readiness score",
-    },
-    {
-      label: "Training load (weekly)",
-      value: getTrainingLoadValue(data?.trainingLoad),
-      helper:
-        data?.trainingLoad?.available === false
-          ? "N/A for this device"
-          : data?.trainingLoad?.trend
-          ? `Trend: ${data.trainingLoad.trend}`
-          : "Last 7 day load estimate",
     },
     {
       label: "Today's HRV",
@@ -310,6 +291,43 @@ export default function Home() {
                       {metric.helper ? <p className="mt-2 text-sm text-slate-500">{metric.helper}</p> : null}
                     </div>
                   ))}
+                </div>
+
+                <div className="mt-6 rounded-[2rem] border border-slate-800 bg-slate-950/70 p-6">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                      <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Training status</p>
+                      <h3 className="mt-2 text-2xl font-semibold text-white">Readiness score & load</h3>
+                    </div>
+                    <p className="text-sm text-slate-400">Separate readiness and load insights from Garmin.</p>
+                  </div>
+                  <div className="mt-6 grid gap-4 lg:grid-cols-2">
+                    <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-5">
+                      <p className="text-sm uppercase tracking-[0.24em] text-slate-400">Training readiness</p>
+                      <p className="mt-4 text-3xl font-semibold text-white">{getTrainingReadinessValue(data?.trainingReadiness)}</p>
+                      <p className="mt-2 text-sm text-slate-500">
+                        {data?.trainingReadiness?.available === false
+                          ? "N/A for this device"
+                          : data?.trainingReadiness?.status
+                          ? `Status: ${data.trainingReadiness.status}`
+                          : "Recovery readiness score"
+                        }
+                      </p>
+                    </div>
+                    <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-5">
+                      <p className="text-sm uppercase tracking-[0.24em] text-slate-400">Training load</p>
+                      <p className="mt-4 text-3xl font-semibold text-white">{getTrainingLoadValue(data?.trainingLoad)}</p>
+                      <p className="mt-2 text-sm text-slate-500">
+                        {data?.trainingLoad?.available === false
+                          ? "N/A for this device"
+                          : "Acute / chronic training load"
+                        }
+                      </p>
+                      {data?.trainingLoad?.weekly != null ? (
+                        <p className="mt-2 text-sm text-slate-400">Weekly load: {String(data.trainingLoad.weekly)}</p>
+                      ) : null}
+                    </div>
+                  </div>
                 </div>
 
                 <div className="mt-6 grid gap-4 md:grid-cols-3">
