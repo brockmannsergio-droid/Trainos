@@ -5,10 +5,12 @@ import { useEffect, useMemo, useState } from "react";
 type GarminData = {
   hrv?: { value?: number | string | null; status?: string; raw?: Record<string, unknown> };
   sleep?: { score?: number | string | null; duration?: number; quality?: number | string | null; raw?: Record<string, unknown> };
-  bodyBattery?: { latest?: Record<string, unknown> | null; raw?: Array<Record<string, unknown>> };
+  bodyBattery?: { latest?: number | string | null; raw?: unknown };
   stress?: { value?: number | string | null; max?: number | string | null; raw?: Record<string, unknown> };
   restingHeartRate?: { value?: number | string | null; available?: boolean; raw?: Record<string, unknown> };
   vo2Max?: { value?: number | string | null; trend?: string | null; available?: boolean; raw?: Record<string, unknown> };
+  vo2MaxRunning?: { value?: number | string | null; available?: boolean; raw?: Record<string, unknown> };
+  vo2MaxCycling?: { value?: number | string | null; available?: boolean; raw?: Record<string, unknown> };
   trainingReadiness?: { score?: number | string | null; status?: string | null; available?: boolean; raw?: Record<string, unknown> };
   trainingLoad?: { current?: number | string | null; weekly?: number | string | null; trend?: string | null; available?: boolean; raw?: Record<string, unknown> };
   weeklySummary?: { totalDistance?: number | null; totalTime?: number | null; totalElevation?: number | null; raw?: Record<string, unknown> };
@@ -61,12 +63,10 @@ const getActivityType = (activity: Record<string, unknown>) => {
   return "—";
 };
 
-const getLatestBodyBattery = (bodyBattery?: { latest?: Record<string, unknown> | null; raw?: Array<Record<string, unknown>> }) => {
+const getLatestBodyBattery = (bodyBattery?: { latest?: number | string | null; raw?: unknown }) => {
   if (!bodyBattery) return "—";
-  const latest = bodyBattery.latest;
-  if (!latest) return "—";
-  const value = latest["bodyBatteryLevel"] ?? latest["value"] ?? latest["batteryLevel"];
-  return value != null ? String(value) : "—";
+  if (bodyBattery.latest == null) return "—";
+  return String(bodyBattery.latest);
 };
 
 const getHrvValue = (hrv?: { value?: number | string | null; status?: string }) => {
@@ -182,14 +182,20 @@ export default function Home() {
           : "Current resting heart rate",
     },
     {
-      label: "VO2max",
-      value: getVo2MaxValue(data?.vo2Max),
+      label: "VO2max Running",
+      value: getVo2MaxValue(data?.vo2MaxRunning),
       helper:
-        data?.vo2Max?.available === false
+        data?.vo2MaxRunning?.available === false
           ? "N/A for this device"
-          : data?.vo2Max?.trend
-          ? `Trend: ${data.vo2Max.trend}`
-          : "Estimated maximal aerobic capacity",
+          : "Running VO2max estimate",
+    },
+    {
+      label: "VO2max Cycling",
+      value: getVo2MaxValue(data?.vo2MaxCycling),
+      helper:
+        data?.vo2MaxCycling?.available === false
+          ? "N/A for this device"
+          : "Cycling VO2max estimate",
     },
     {
       label: "Training readiness",
@@ -222,9 +228,9 @@ export default function Home() {
       helper: "Last recorded night",
     },
     {
-      label: "Body Battery",
+      label: "Current body battery",
       value: getLatestBodyBattery(data?.bodyBattery),
-      helper: "Most recent body energy level",
+      helper: "Uses current wellness timeline; falls back to sleep body battery",
     },
     {
       label: "Stress Level",

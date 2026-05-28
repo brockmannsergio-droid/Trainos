@@ -158,6 +158,68 @@ const extractLatestResponseValue = (response: unknown, ...keys: string[]) => {
   return getNumberValue(response as Record<string, any>, ...keys);
 };
 
+const getEntryTimestamp = (entry: Record<string, any>) => {
+  const raw = getValue(entry, "startGMT", "timestamp", "time", "dateTime", "startTime");
+  if (typeof raw === "number") return raw;
+  if (typeof raw === "string") {
+    const numeric = Number(raw);
+    if (!Number.isNaN(numeric)) return numeric;
+    const parsed = Date.parse(raw);
+    if (!Number.isNaN(parsed)) return parsed;
+  }
+  return 0;
+};
+
+const getLatestBodyBatteryEntry = (entries: unknown[]) => {
+  const validEntries = entries.filter((entry) => entry && typeof entry === "object") as Record<string, any>[];
+  if (!validEntries.length) return null;
+  return validEntries.reduce((latest, current) => {
+    if (!latest) return current;
+    const latestTs = getEntryTimestamp(latest);
+    const currentTs = getEntryTimestamp(current);
+    return currentTs >= latestTs ? current : latest;
+  }, null as Record<string, any> | null);
+};
+
+const getBodyBatteryArray = (bodyBatteryData: unknown): unknown[] | null => {
+  if (Array.isArray(bodyBatteryData) && bodyBatteryData.length) return bodyBatteryData;
+  if (!bodyBatteryData || typeof bodyBatteryData !== "object") return null;
+
+  const data = bodyBatteryData as Record<string, any>;
+  const candidates = [
+    data.bodyBattery,
+    data.bodyBatteryTimeline,
+    data.bodyBatteryList,
+    data.bodyBatteryStatList,
+    data.bodyBatteryEntries,
+    data.dailyBodyBattery,
+    data.data,
+    data.series,
+    data.bodyBatteryData,
+  ];
+
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate) && candidate.length) return candidate;
+  }
+
+  if (data.startGMT || data.timestamp || data.time || data.dateTime || data.startTime) {
+    return [data];
+  }
+
+  return null;
+};
+
+const extractBodyBattery = (bodyBatteryData: unknown, sleepPayload: ReturnType<typeof extractSleep>) => {
+  const bodyBatteryArray = getBodyBatteryArray(bodyBatteryData);
+  if (bodyBatteryArray) {
+    const latestEntry = getLatestBodyBatteryEntry(bodyBatteryArray);
+    const latestValue = extractLatestResponseValue(latestEntry, "value", "battery", "bodyBattery", "bodyBatteryLevel", "charged");
+    if (latestValue != null) return latestValue;
+  }
+
+  return sleepPayload.bodyBatteryLatest;
+};
+
 const tryClientMethods = async (client: GarminConnect, label: string, methods: Array<{ name: string; args: unknown[] }>) => {
   const rawClient: any = client as any;
   for (const method of methods) {
@@ -190,25 +252,6 @@ const tryRawEndpoints = async (client: GarminConnect, label: string, endpoints: 
     }
   }
   return null;
-};
-
-const extractBodyBattery = (bodyBatteryData: unknown, sleepPayload: ReturnType<typeof extractSleep>) => {
-  if (!isValidResponse(bodyBatteryData)) {
-    return sleepPayload.bodyBatteryLatest;
-  }
-
-  const lastEntry = getLastArrayItem(bodyBatteryData);
-  const lastValue = extractLatestResponseValue(lastEntry, "value", "battery", "bodyBattery", "charged");
-  if (lastValue != null) return lastValue;
-
-  const statsList = getLastArrayItem(
-    (bodyBatteryData as Record<string, any>).bodyBatteryStatList ??
-      (bodyBatteryData as Record<string, any>).bodyBatteryStats ??
-      (bodyBatteryData as Record<string, any>).statistics ??
-      (bodyBatteryData as Record<string, any>).data
-  );
-
-  return extractLatestResponseValue(statsList, "value", "battery", "bodyBattery", "charged") ?? sleepPayload.bodyBatteryLatest;
 };
 
 const fetchBodyBatteryData = async (client: GarminConnect, today: Date, sevenDaysAgo: Date) => {
@@ -336,10 +379,16 @@ const fetchGarminData = async () => {
   const stressValue = sleepPayload.stressValue ?? null;
   const stressMax = null;
 
+  const vo2MaxRunning =
+    getNumberValue((vo2MaxData as Record<string, any>)?.userData, "vo2MaxRunning") ??
+    getNumberValue(vo2MaxData as Record<string, any>, "vo2MaxRunning");
+  const vo2MaxCycling =
+    getNumberValue((vo2MaxData as Record<string, any>)?.userData, "vo2MaxCycling") ??
+    getNumberValue(vo2MaxData as Record<string, any>, "vo2MaxCycling");
   const vo2MaxValue =
     extractLatestResponseValue(vo2MaxData, "value", "vo2Max", "vo2MaxValue", "maxVo2", "vo2") ??
-    getNumberValue((vo2MaxData as Record<string, any>)?.userData, "vo2MaxRunning", "vo2MaxCycling") ??
-    getNumberValue(vo2MaxData as Record<string, any>, "vo2MaxRunning", "vo2MaxCycling");
+    vo2MaxRunning ??
+    vo2MaxCycling;
   const vo2MaxTrend = getValue(vo2MaxData as Record<string, any>, "trend", "trendDirection", "status");
   const vo2MaxAvailable = vo2MaxValue != null;
 
@@ -384,6 +433,16 @@ const fetchGarminData = async () => {
       value: vo2MaxValue,
       trend: vo2MaxTrend ?? null,
       available: vo2MaxAvailable,
+      raw: vo2MaxData,
+    },
+    vo2MaxRunning: {
+      value: vo2MaxRunning,
+      available: vo2MaxRunning != null,
+      raw: vo2MaxData,
+    },
+    vo2MaxCycling: {
+      value: vo2MaxCycling,
+      available: vo2MaxCycling != null,
       raw: vo2MaxData,
     },
     trainingReadiness: {
