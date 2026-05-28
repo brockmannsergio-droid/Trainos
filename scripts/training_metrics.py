@@ -59,20 +59,16 @@ def try_call(label: str, fn):
         return {"label": label, "data": None, "error": str(exc)}
 
 
-def main():
-    email = get_env_value("GARMIN_EMAIL")
-    password = get_env_value("GARMIN_PASSWORD")
+def get_training_metrics(email: str | None = None, password: str | None = None) -> dict[str, object | None]:
+    if not email or not password:
+        email = get_env_value("GARMIN_EMAIL")
+        password = get_env_value("GARMIN_PASSWORD")
 
     if not email or not password:
-        print(json.dumps({"error": "Missing GARMIN_EMAIL or GARMIN_PASSWORD in environment or .env.local"}, indent=2))
-        return 1
+        raise ValueError("Missing GARMIN_EMAIL or GARMIN_PASSWORD in environment or .env.local")
 
     client = Garmin(email=email, password=password)
-    try:
-        client.login()
-    except Exception as exc:
-        print(json.dumps({"error": f"Garmin login failed: {exc}"}, indent=2))
-        return 2
+    client.login()
 
     today = normalize_date(datetime.utcnow())
 
@@ -105,8 +101,17 @@ def main():
     }
     results["extracted_fields"] = extracted
 
-    print(json.dumps(results, indent=2, default=str))
-    return 0
+    return results
+
+
+def main():
+    try:
+        metrics = get_training_metrics()
+        print(json.dumps(metrics, indent=2, default=str))
+        return 0
+    except Exception as exc:
+        print(json.dumps({"error": str(exc)}, indent=2))
+        return 1
 
 
 if __name__ == "__main__":
