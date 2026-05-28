@@ -38,6 +38,31 @@ const fetchRawEndpointResponses = async (client: GarminConnect, endpoints: strin
   return results;
 };
 
+const findKeyMatches = (value: unknown, patterns: string[], path = ""): Array<{ path: string; value: unknown }> => {
+  const results: Array<{ path: string; value: unknown }> = [];
+  const lowerPatterns = patterns.map((pattern) => pattern.toLowerCase());
+
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => {
+      results.push(...findKeyMatches(item, patterns, `${path}[${index}]`));
+    });
+    return results;
+  }
+
+  if (value && typeof value === "object") {
+    for (const [key, subValue] of Object.entries(value as Record<string, unknown>)) {
+      const currentPath = path ? `${path}.${key}` : key;
+      const lowerKey = key.toLowerCase();
+      if (lowerPatterns.some((pattern) => lowerKey.includes(pattern))) {
+        results.push({ path: currentPath, value: subValue });
+      }
+      results.push(...findKeyMatches(subValue, patterns, currentPath));
+    }
+  }
+
+  return results;
+};
+
 export async function GET() {
   const username = process.env.GARMIN_EMAIL;
   const password = process.env.GARMIN_PASSWORD;
@@ -102,11 +127,29 @@ export async function GET() {
       }
       throw new Error("getTrainingReadiness method not available");
     }),
+    getTrainingReadinessWithStringDate: await safeCall("getTrainingReadinessWithStringDate", async () => {
+      if (typeof rawClient.getTrainingReadiness === "function") {
+        return await rawClient.getTrainingReadiness(toDateString(today));
+      }
+      throw new Error("getTrainingReadiness method not available");
+    }),
     getTrainingStatus: await safeCall("getTrainingStatus", async () => {
       if (typeof rawClient.getTrainingStatus === "function") {
         return await rawClient.getTrainingStatus(today);
       }
       throw new Error("getTrainingStatus method not available");
+    }),
+    getTrainingLoad: await safeCall("getTrainingLoad", async () => {
+      if (typeof rawClient.getTrainingLoad === "function") {
+        return await rawClient.getTrainingLoad(toDateString(sevenDaysAgo), toDateString(today));
+      }
+      throw new Error("getTrainingLoad method not available");
+    }),
+    getMetrics: await safeCall("getMetrics", async () => {
+      if (typeof rawClient.getMetrics === "function") {
+        return await rawClient.getMetrics(today);
+      }
+      throw new Error("getMetrics method not available");
     }),
     getDailyStats: await safeCall("getDailyStats", async () => {
       if (typeof rawClient.getDailyStats === "function") {
@@ -120,12 +163,27 @@ export async function GET() {
       }
       throw new Error("getWellnessData method not available");
     }),
+    getUserSettingsMatches: await safeCall("getUserSettingsMatches", async () => {
+      if (typeof rawClient.getUserSettings === "function") {
+        const settings = await rawClient.getUserSettings();
+        return findKeyMatches(settings, ["load", "readiness", "training"]);
+      }
+      throw new Error("getUserSettings method not available");
+    }),
     rawBodyBatteryEndpoints: await safeCall("rawBodyBatteryEndpoints", async () =>
       fetchRawEndpointResponses(rawClient, [
         "/wellness-service/wellness/dailyBodyBattery",
         "/wellness-service/wellness/dailyWellness",
         "/wellness-service/wellness/dailyWellnessData",
         "/wellness-service/wellness/dailyStats",
+      ], { date: toDateString(today), startDate: toDateString(sevenDaysAgo), endDate: toDateString(today) })
+    ),
+    rawTrainingEndpoints: await safeCall("rawTrainingEndpoints", async () =>
+      fetchRawEndpointResponses(rawClient, [
+        "/wellness-service/wellness/trainingReadiness",
+        "/wellness-service/wellness/trainingStatus",
+        "/wellness-service/wellness/trainingLoad",
+        "/wellness-service/wellness/dailyTrainingLoad",
       ], { date: toDateString(today), startDate: toDateString(sevenDaysAgo), endDate: toDateString(today) })
     ),
   };
