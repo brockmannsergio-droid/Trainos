@@ -16,6 +16,17 @@ const parseDate = (daysAgo = 0) => {
   return date;
 };
 
+const toDateString = (date: Date) => date.toISOString().slice(0, 10);
+
+const getLastArrayItem = (value: unknown) => (Array.isArray(value) && value.length ? value[value.length - 1] : value);
+
+const getNumberValue = (payload: Record<string, unknown> | null | undefined, ...keys: string[]) => {
+  const raw = getValue(payload, ...keys);
+  if (typeof raw === "number") return raw;
+  if (typeof raw === "string" && raw.trim() !== "" && !Number.isNaN(Number(raw))) return Number(raw);
+  return null;
+};
+
 const extractSleep = (sleepData: unknown) => {
   if (!sleepData || typeof sleepData !== "object") {
     return {
@@ -32,16 +43,20 @@ const extractSleep = (sleepData: unknown) => {
   }
 
   const summary = (sleepData as Record<string, any>).dailySleepDTO ?? sleepData;
-  const score = getValue(summary, "sleepScore", "score", "sleepQualityScore", "sleepQuality");
-  const duration = getValue(summary, "sleepTimeSeconds", "totalSleepDuration", "sleepDurationInSeconds");
-  const quality = getValue(summary, "sleepQualityScore", "sleepQuality");
-  const hrvValue = getValue(sleepData as Record<string, any>, "avgOvernightHrv", "avgHrv", "averageHrv");
+  const score =
+    getNumberValue(summary as Record<string, any>, "sleepScore", "score", "sleepQualityScore", "sleepQuality") ??
+    getNumberValue((summary as Record<string, any>).sleepScores?.overall as Record<string, any>, "value");
+  const duration = getNumberValue(summary as Record<string, any>, "sleepTimeSeconds", "totalSleepDuration", "sleepDurationInSeconds");
+  const quality = getNumberValue(summary as Record<string, any>, "sleepQualityScore", "sleepQuality");
+  const hrvValue = getNumberValue(sleepData as Record<string, any>, "avgOvernightHrv", "avgHrv", "averageHrv");
   const hrvStatus = getValue(sleepData as Record<string, any>, "hrvStatus");
-  const bodyBatteryLatest = Array.isArray((sleepData as Record<string, any>).sleepBodyBattery)
-    ? getValue((sleepData as Record<string, any>).sleepBodyBattery.slice(-1)[0], "value", "battery")
-    : null;
-  const bodyBatteryChange = getValue(sleepData as Record<string, any>, "bodyBatteryChange");
-  const stressValue = getValue(sleepData as Record<string, any>, "avgSleepStress", "stress", "sleepStress");
+
+  const sleepBodyBattery = getLastArrayItem((sleepData as Record<string, any>).sleepBodyBattery);
+  const bodyBatteryLatest = getNumberValue(sleepBodyBattery as Record<string, any>, "value", "battery", "bodyBattery");
+  const bodyBatteryChange = getNumberValue(sleepData as Record<string, any>, "bodyBatteryChange", "bodyBatteryDelta");
+
+  const sleepStress = getLastArrayItem((sleepData as Record<string, any>).sleepStress ?? (sleepData as Record<string, any>).stress ?? (sleepData as Record<string, any>).stressData);
+  const stressValue = getNumberValue(sleepStress as Record<string, any>, "stressLevel", "value", "avgStress", "stress");
 
   return {
     score,
@@ -141,14 +156,24 @@ const fetchGarminData = async () => {
   await client.login();
 
   const today = parseDate(0);
+  const wellnessBase = ((client as any).url?.GC_API as string) ?? "https://connectapi.garmin.com";
 
   const activitiesResult = await safeFetch("activities", () => client.getActivities(0, 30));
   const sleepResult = await safeFetch("sleepData", () => client.getSleepData(today));
+  const bodyBatteryResult = await safeFetch("bodyBatteryData", () =>
+    (client as any).get(`${wellnessBase}/wellness-service/wellness/dailyBodyBattery`, {
+      params: { date: toDateString(today) },
+    })
+  );
   const heartRateResult = await safeFetch("heartRateData", () => client.getHeartRate(today));
 
   const activities = (activitiesResult.data ?? []) as unknown[];
   const sleepData = sleepResult.data;
+  const bodyBatteryData = bodyBatteryResult.data;
   const heartRateData = heartRateResult.data;
+
+  console.log("[Garmin] raw sleepData:", sleepData);
+  console.log("[Garmin] raw bodyBatteryData:", bodyBatteryData);
 
   const sleepPayload = extractSleep(sleepData);
   const heartRatePayload = extractHeartRate(heartRateData);
@@ -158,8 +183,12 @@ const fetchGarminData = async () => {
 
   const hrvValue = sleepPayload.hrvValue ?? null;
   const hrvStatus = sleepPayload.hrvStatus ?? null;
-  const bodyBatteryLatest = sleepPayload.bodyBatteryLatest ?? null;
+  const bodyBatteryLatest =
+    sleepPayload.bodyBatteryLatest ??
+    getNumberValue(getLastArrayItem(bodyBatteryData) as Record<string, any>, "value", "battery", "bodyBattery") ??
+    null;
   const bodyBatteryChange = sleepPayload.bodyBatteryChange ?? null;
+
   const stressValue = sleepPayload.stressValue ?? null;
   const stressMax = null;
 
