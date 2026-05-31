@@ -69,16 +69,16 @@ export async function fetchTrainingMetricsService(): Promise<{ trainingReadiness
     // raw structure with latestTrainingStatusData
     const latest = c?.mostRecentTrainingStatus?.latestTrainingStatusData ?? c?.latestTrainingStatusData ?? c?.latestTrainingStatus ?? c?.trainingStatus ?? null;
     if (latest) {
-      let first = null;
-      if (Array.isArray(latest) && latest.length) first = latest[0];
+      // latest can be an array or an object keyed by device id. prefer the first device entry.
+      let deviceData: any = null;
+      if (Array.isArray(latest) && latest.length) deviceData = latest[0];
       else if (typeof latest === "object") {
         const vals = Object.values(latest);
-        if (vals.length) first = vals[0];
+        if (vals.length) deviceData = vals[0];
       }
-      if (first) {
-        const acuteDto = first?.acuteTrainingLoadDTO ?? first;
-        const acute = getNumber(acuteDto, "dailyTrainingLoadAcute", "dailyTrainingLoad", "acute");
-        const chronic = getNumber(acuteDto, "dailyTrainingLoadChronic", "chronic");
+      if (deviceData) {
+        const acute = deviceData?.acuteTrainingLoadDTO?.dailyTrainingLoadAcute ?? getNumber(deviceData?.acuteTrainingLoadDTO ?? deviceData, "dailyTrainingLoadAcute", "dailyTrainingLoad", "acute");
+        const chronic = deviceData?.acuteTrainingLoadDTO?.dailyTrainingLoadChronic ?? getNumber(deviceData?.acuteTrainingLoadDTO ?? deviceData, "dailyTrainingLoadChronic", "chronicLoad", "chronic");
         found = { acute, chronic };
         break;
       }
