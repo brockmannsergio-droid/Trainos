@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
 type GarminData = {
   hrv?: { value?: number | string | null; status?: string; raw?: Record<string, unknown> };
@@ -13,6 +14,7 @@ type GarminData = {
   vo2MaxCycling?: { value?: number | string | null; available?: boolean; raw?: Record<string, unknown> };
   trainingReadiness?: { score?: number | string | null; status?: string | null; available?: boolean; raw?: Record<string, unknown> };
   trainingLoad?: { acute?: number | string | null; chronic?: number | string | null; weekly?: number | string | null; trend?: string | null; available?: boolean; raw?: Record<string, unknown> };
+  fitness?: Array<{ date: string; ctl: number; atl: number; tsb: number; tss: number }>;
   weeklySummary?: { totalDistance?: number | null; totalTime?: number | null; totalElevation?: number | null; raw?: Record<string, unknown> };
   heartRateZones?: Array<{ label?: string | null; min?: number | string | null; max?: number | string | null; time?: number | string | null; raw?: Record<string, unknown> }>;
   trendIndicator?: string | null;
@@ -110,6 +112,11 @@ const getTrainingLoadValue = (trainingLoad?: { acute?: number | string | null; c
   return `${acute} / ${chronic}`;
 };
 
+const getFitnessValue = (value?: number | string | null) => {
+  if (value == null || value === "") return "—";
+  return String(value);
+};
+
 const formatElevation = (meters: number | string | undefined) => {
   if (meters == null || Number.isNaN(Number(meters))) return "—";
   return `${Number(meters).toFixed(0)} m`;
@@ -173,6 +180,13 @@ export default function Home() {
       type: getActivityType(activity),
     }));
   }, [data]);
+
+  const fitnessData = useMemo(
+    () => (data?.fitness ?? []).slice(-60),
+    [data?.fitness]
+  );
+
+  const currentFitness = fitnessData.length ? fitnessData[fitnessData.length - 1] : null;
 
   const metrics: MetricCard[] = [
     {
@@ -339,6 +353,51 @@ export default function Home() {
                         }
                       </p>
                     </div>
+                  </div>
+                </div>
+
+                <div className="mt-6 rounded-[2rem] border border-slate-800 bg-slate-950/70 p-6">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                      <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Fitness</p>
+                      <h3 className="mt-2 text-2xl font-semibold text-white">CTL / ATL / TSB</h3>
+                    </div>
+                    <p className="text-sm text-slate-400">Calculated from your last 90 days of activities.</p>
+                  </div>
+                  <div className="mt-6 grid gap-4 lg:grid-cols-3">
+                    <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-5">
+                      <p className="text-sm uppercase tracking-[0.24em] text-slate-400">CTL</p>
+                      <p className="mt-4 text-3xl font-semibold text-white">{getFitnessValue(currentFitness?.ctl)}</p>
+                      <p className="mt-2 text-sm text-slate-500">Chronic training load</p>
+                    </div>
+                    <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-5">
+                      <p className="text-sm uppercase tracking-[0.24em] text-slate-400">ATL</p>
+                      <p className="mt-4 text-3xl font-semibold text-white">{getFitnessValue(currentFitness?.atl)}</p>
+                      <p className="mt-2 text-sm text-slate-500">Acute training load</p>
+                    </div>
+                    <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-5">
+                      <p className="text-sm uppercase tracking-[0.24em] text-slate-400">TSB</p>
+                      <p className="mt-4 text-3xl font-semibold text-white">{getFitnessValue(currentFitness?.tsb)}</p>
+                      <p className="mt-2 text-sm text-slate-500">Training stress balance</p>
+                    </div>
+                  </div>
+                  <div className="mt-6 h-[360px] rounded-3xl border border-slate-800 bg-slate-950/80 p-4">
+                    {fitnessData.length ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={fitnessData} margin={{ top: 20, right: 24, left: 0, bottom: 0 }}>
+                          <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
+                          <XAxis dataKey="date" tick={{ fill: "#94a3b8", fontSize: 12 }} tickLine={false} axisLine={false} />
+                          <YAxis tick={{ fill: "#94a3b8", fontSize: 12 }} tickLine={false} axisLine={false} />
+                          <Tooltip contentStyle={{ background: "#0f172a", borderColor: "#334155" }} labelStyle={{ color: "#fff" }} formatter={(value: number) => String(value)} />
+                          <Legend wrapperStyle={{ color: "#cbd5e1" }} />
+                          <Line type="monotone" dataKey="ctl" stroke="#22c55e" strokeWidth={2} dot={false} />
+                          <Line type="monotone" dataKey="atl" stroke="#38bdf8" strokeWidth={2} dot={false} />
+                          <Line type="monotone" dataKey="tsb" stroke="#f97316" strokeWidth={2} dot={false} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-slate-500">No fitness trend data available.</div>
+                    )}
                   </div>
                 </div>
 

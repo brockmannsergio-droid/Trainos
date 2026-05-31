@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { GarminConnect } from "garmin-connect";
+import { computeFitnessMetrics } from "../../../lib/fitness-metrics";
 
 const getValue = (payload: Record<string, unknown> | null | undefined, ...keys: string[]) => {
   if (!payload || typeof payload !== "object") return null;
@@ -352,7 +353,7 @@ const fetchGarminData = async () => {
   const today = parseDate(0);
   const sevenDaysAgo = parseDate(7);
 
-  const activitiesResult = await safeFetch("activities", () => client.getActivities(0, 30));
+  const activitiesResult = await safeFetch("activities", () => client.getActivities(0, 90));
   const sleepResult = await safeFetch("sleepData", () => client.getSleepData(today));
   const bodyBatteryResult = await safeFetch("bodyBatteryData", () => fetchBodyBatteryData(client, today, sevenDaysAgo));
   const vo2MaxResult = await safeFetch("vo2MaxData", () => fetchVo2MaxData(client, today));
@@ -383,6 +384,8 @@ const fetchGarminData = async () => {
 
   const sleepPayload = extractSleep(sleepData);
   const heartRatePayload = extractHeartRate(heartRateData);
+  const restingHeartRateValue = heartRatePayload.value != null ? Number(heartRatePayload.value) : null;
+  const fitnessData = computeFitnessMetrics(activities, Number.isFinite(restingHeartRateValue) ? restingHeartRateValue : null);
   const weeklySummaryPayload = extractWeeklySummary(activities);
   const lastActivity = Array.isArray(activities) && activities.length ? activities[0] : null;
   const hrZonesPayload = extractHRZones(lastActivity);
@@ -552,6 +555,7 @@ const fetchGarminData = async () => {
       available: trainingLoadAcute != null,
       raw: trainingMetricsRaw ?? trainingLoadData,
     },
+    fitness: fitnessData,
     weeklySummary: {
       totalDistance: weeklySummaryPayload.totalDistance,
       totalTime: weeklySummaryPayload.totalTime,
