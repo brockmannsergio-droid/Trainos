@@ -318,9 +318,9 @@ export default function Home() {
                   </div>
                   {metrics.map((metric) => (
                     <div key={metric.label} className="rounded-3xl border border-slate-800 bg-slate-950/70 p-5">
-                      <p className="text-sm uppercase tracking-[0.24em] text-slate-400">
+                      <div className="text-sm uppercase tracking-[0.24em] text-slate-400">
                         <TooltipLabel label={metric.label} tooltip={metric.tooltip} />
-                      </p>
+                      </div>
                       <p className="mt-4 text-3xl font-semibold text-white">{metric.value}</p>
                       {metric.helper ? <p className="mt-2 text-sm text-slate-500">{metric.helper}</p> : null}
                     </div>
@@ -337,12 +337,12 @@ export default function Home() {
                   </div>
                   <div className="mt-6 grid gap-4 lg:grid-cols-3">
                     <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-5">
-                      <p className="text-sm uppercase tracking-[0.24em] text-slate-400">
+                      <div className="text-sm uppercase tracking-[0.24em] text-slate-400">
                         <TooltipLabel
                           label="Training readiness"
                           tooltip="A Garmin score (0-100) combining HRV, sleep, recovery time and training history. Higher = more ready to train hard today."
                         />
-                      </p>
+                      </div>
                       <p className="mt-4 text-3xl font-semibold text-white">{getTrainingReadinessValue(data?.trainingReadiness)}</p>
                       <p className="mt-2 text-sm text-slate-500">
                         {data?.trainingReadiness?.available === false
@@ -354,12 +354,12 @@ export default function Home() {
                       </p>
                     </div>
                     <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-5">
-                      <p className="text-sm uppercase tracking-[0.24em] text-slate-400">
+                      <div className="text-sm uppercase tracking-[0.24em] text-slate-400">
                         <TooltipLabel
                           label="Acute Load"
                           tooltip="Your training load over the last 7 days based on your Garmin device. Used to track short-term fatigue and prevent overtraining."
                         />
-                      </p>
+                      </div>
                       <p className="mt-4 text-3xl font-semibold text-white">
                         {data?.trainingLoad?.acute != null ? String(data.trainingLoad.acute) : "—"}
                       </p>
@@ -371,12 +371,12 @@ export default function Home() {
                       </p>
                     </div>
                     <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-5">
-                      <p className="text-sm uppercase tracking-[0.24em] text-slate-400">
+                      <div className="text-sm uppercase tracking-[0.24em] text-slate-400">
                         <TooltipLabel
                           label="Chronic Load"
                           tooltip="Your average training load over the last month. Represents your fitness base. Compare with Acute Load to understand your training balance."
                         />
-                      </p>
+                      </div>
                       <p className="mt-4 text-3xl font-semibold text-white">
                         {data?.trainingLoad?.chronic != null ? String(data.trainingLoad.chronic) : "—"}
                       </p>
@@ -400,32 +400,32 @@ export default function Home() {
                   </div>
                   <div className="mt-6 grid gap-4 lg:grid-cols-3">
                     <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-5">
-                      <p className="text-sm uppercase tracking-[0.24em] text-slate-400">
+                      <div className="text-sm uppercase tracking-[0.24em] text-slate-400">
                         <TooltipLabel
                           label="CTL"
                           tooltip="Chronic Training Load: Your average training stress over the last 42 days. Represents your overall fitness level. Higher = more fit."
                         />
-                      </p>
+                      </div>
                       <p className="mt-4 text-3xl font-semibold text-white">{getFitnessValue(currentFitness?.ctl)}</p>
                       <p className="mt-2 text-sm text-slate-500">Chronic training load</p>
                     </div>
                     <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-5">
-                      <p className="text-sm uppercase tracking-[0.24em] text-slate-400">
+                      <div className="text-sm uppercase tracking-[0.24em] text-slate-400">
                         <TooltipLabel
                           label="ATL"
                           tooltip="Acute Training Load: Your average training stress over the last 7 days. Represents how tired you are right now. Rises quickly after hard weeks."
                         />
-                      </p>
+                      </div>
                       <p className="mt-4 text-3xl font-semibold text-white">{getFitnessValue(currentFitness?.atl)}</p>
                       <p className="mt-2 text-sm text-slate-500">Acute training load</p>
                     </div>
                     <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-5">
-                      <p className="text-sm uppercase tracking-[0.24em] text-slate-400">
+                      <div className="text-sm uppercase tracking-[0.24em] text-slate-400">
                         <TooltipLabel
                           label="TSB"
                           tooltip="Training Stress Balance: CTL minus ATL. Negative = fatigued but building fitness. Positive = fresh and ready to perform. Sweet spot for racing: +5 to +20."
                         />
-                      </p>
+                      </div>
                       <p className="mt-4 text-3xl font-semibold text-white">{getFitnessValue(currentFitness?.tsb)}</p>
                       <p className="mt-2 text-sm text-slate-500">Training stress balance</p>
                     </div>
