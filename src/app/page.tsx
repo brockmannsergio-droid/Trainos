@@ -302,7 +302,7 @@ export default function Home() {
                     </div>
                     <p className="text-sm text-slate-400">Separate readiness and load insights from Garmin.</p>
                   </div>
-                  <div className="mt-6 grid gap-4 lg:grid-cols-2">
+                  <div className="mt-6 grid gap-4 lg:grid-cols-3">
                     <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-5">
                       <p className="text-sm uppercase tracking-[0.24em] text-slate-400">Training readiness</p>
                       <p className="mt-4 text-3xl font-semibold text-white">{getTrainingReadinessValue(data?.trainingReadiness)}</p>
@@ -316,17 +316,28 @@ export default function Home() {
                       </p>
                     </div>
                     <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-5">
-                      <p className="text-sm uppercase tracking-[0.24em] text-slate-400">Training load</p>
-                      <p className="mt-4 text-3xl font-semibold text-white">{getTrainingLoadValue(data?.trainingLoad)}</p>
+                      <p className="text-sm uppercase tracking-[0.24em] text-slate-400">Acute Load</p>
+                      <p className="mt-4 text-3xl font-semibold text-white">
+                        {data?.trainingLoad?.acute != null ? String(data.trainingLoad.acute) : "—"}
+                      </p>
                       <p className="mt-2 text-sm text-slate-500">
                         {data?.trainingLoad?.available === false
                           ? "N/A for this device"
-                          : "Acute / chronic training load"
+                          : "Current acute training load"
                         }
                       </p>
-                      {data?.trainingLoad?.weekly != null ? (
-                        <p className="mt-2 text-sm text-slate-400">Weekly load: {String(data.trainingLoad.weekly)}</p>
-                      ) : null}
+                    </div>
+                    <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-5">
+                      <p className="text-sm uppercase tracking-[0.24em] text-slate-400">Chronic Load</p>
+                      <p className="mt-4 text-3xl font-semibold text-white">
+                        {data?.trainingLoad?.chronic != null ? String(data.trainingLoad.chronic) : "—"}
+                      </p>
+                      <p className="mt-2 text-sm text-slate-500">
+                        {data?.trainingLoad?.available === false
+                          ? "N/A for this device"
+                          : "Current chronic training load"
+                        }
+                      </p>
                     </div>
                   </div>
                 </div>

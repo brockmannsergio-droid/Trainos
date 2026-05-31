@@ -367,7 +367,11 @@ const fetchGarminData = async () => {
   const vo2MaxData = vo2MaxResult.data;
   const tmData: any = trainingMetricsResult.data;
   const trainingReadinessData = tmData?.trainingReadiness ?? tmData?.training_readiness?.data ?? trainingReadinessResult.data;
-  const trainingLoadData = tmData?.trainingLoad ?? tmData?.training_status?.data ?? trainingLoadResult.data;
+  const trainingLoadData = tmData?.trainingLoad?.acute != null
+    ? tmData.trainingLoad
+    : tmData?.raw?.trainingLoad?.acute != null
+    ? tmData.raw.trainingLoad
+    : null;
   const trainingMetricsRaw = tmData ?? null;
   const heartRateData = heartRateResult.data;
 
