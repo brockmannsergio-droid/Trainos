@@ -152,13 +152,15 @@ const isValidResponse = (response: unknown) => {
 };
 
 const fetchTrainingMetrics = async () => {
-  const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000";
-  const url = `${baseUrl}/api/garmin/training`;
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+  const url = `${baseUrl.replace(/\/$/, "")}/api/garmin/training`;
   const response = await fetch(url, { cache: "no-store" });
   if (!response.ok) {
     throw new Error(`Training metrics fetch failed with ${response.status}`);
   }
-  return await response.json();
+  const data = await response.json();
+  console.log("[Garmin] /api/garmin/training returned:", data);
+  return data;
 };
 
 const extractLatestResponseValue = (response: unknown, ...keys: string[]) => {
@@ -413,16 +415,39 @@ const fetchGarminData = async () => {
   const vo2MaxTrend = getValue(vo2MaxData as Record<string, any>, "trend", "trendDirection", "status");
   const vo2MaxAvailable = vo2MaxValue != null;
 
-  // Training readiness: accept simplified service format or raw arrays/objects
-  const trainingReadinessScore = extractLatestResponseValue(trainingReadinessData, "score", "trainingReadiness", "value", "readiness");
-  const trainingReadinessStatus = extractLatestResponseField(
-    trainingReadinessData,
-    "level",
-    "status",
-    "trainingStatus",
-    "readinessStatus",
-    "state"
-  );
+  // Training readiness: prefer exact fields from training service raw payload, fallback to generic extraction
+  let trainingReadinessScore: number | null = null;
+  let trainingReadinessStatus: string | null = null;
+  const tm = trainingMetricsRaw as any;
+  if (tm) {
+    const trCandidate = tm.trainingReadiness ?? tm.training_readiness ?? tm.training_readiness?.data ?? tm.trainingReadinessData ?? tm.training_readiness_data ?? null;
+    let tr0: any = null;
+    if (Array.isArray(trCandidate) && trCandidate.length) tr0 = trCandidate[0];
+    else if (Array.isArray(trainingReadinessData) && trainingReadinessData.length) tr0 = (trainingReadinessData as any)[0];
+    else if (trainingReadinessData && typeof trainingReadinessData === "object") tr0 = trainingReadinessData;
+
+    if (tr0 && typeof tr0 === "object") {
+      const s = getNumberValue(tr0 as Record<string, any>, "score");
+      const lvl = getValue(tr0 as Record<string, any>, "level");
+      trainingReadinessScore = s != null ? s : null;
+      trainingReadinessStatus = typeof lvl === "string" ? lvl : lvl != null ? String(lvl) : null;
+    }
+  }
+
+  // fallback to previous generic extraction if not found
+  if (trainingReadinessScore == null && trainingReadinessStatus == null) {
+    const fallbackScore = extractLatestResponseValue(trainingReadinessData, "score", "trainingReadiness", "value", "readiness");
+    const fallbackStatus = extractLatestResponseField(
+      trainingReadinessData,
+      "level",
+      "status",
+      "trainingStatus",
+      "readinessStatus",
+      "state"
+    );
+    trainingReadinessScore = fallbackScore != null ? fallbackScore : trainingReadinessScore;
+    trainingReadinessStatus = trainingReadinessStatus ?? (typeof fallbackStatus === "string" ? fallbackStatus : fallbackStatus != null ? String(fallbackStatus) : null);
+  }
   const trainingReadinessAvailable = trainingReadinessScore != null || trainingReadinessStatus != null;
 
   // Training load: handle simplified `{ acute, chronic }` or the raw Garmin structures
@@ -430,6 +455,28 @@ const fetchGarminData = async () => {
   let trainingLoadChronic: number | null = null;
   let trainingLoadWeekly: number | null = null;
   let trainingLoadTrend: string | null = null;
+  // Try exact extraction from training metrics raw payload first
+  if (trainingMetricsRaw) {
+    try {
+      const ts = (trainingMetricsRaw as any).trainingStatus ?? (trainingMetricsRaw as any).training_status ?? (trainingMetricsRaw as any).training_status_data ?? (trainingMetricsRaw as any).training_status ?? null;
+      const latest = ts?.latestTrainingStatusData ?? ts?.mostRecentTrainingStatus?.latestTrainingStatusData ?? ts?.latestTrainingStatusData ?? ts?.latestTrainingStatus ?? null;
+      let firstStatus: any = null;
+      if (Array.isArray(latest) && latest.length) firstStatus = latest[0];
+      else if (latest && typeof latest === "object") {
+        // sometimes latestTrainingStatusData is an object keyed by device
+        const vals = Object.values(latest);
+        if (vals.length) firstStatus = vals[0];
+      }
+
+      const acuteDto = firstStatus?.acuteTrainingLoadDTO ?? firstStatus;
+      if (acuteDto) {
+        trainingLoadAcute = getNumberValue(acuteDto as Record<string, any>, "dailyTrainingLoadAcute", "dailyTrainingLoad", "acute", "acuteLoad");
+        trainingLoadChronic = getNumberValue(acuteDto as Record<string, any>, "dailyTrainingLoadChronic", "chronic", "chronicLoad");
+      }
+    } catch (err) {
+      console.warn("[Garmin] training metrics raw parsing failed:", err);
+    }
+  }
 
   if (trainingLoadData && typeof trainingLoadData === "object") {
     // simplified service format
