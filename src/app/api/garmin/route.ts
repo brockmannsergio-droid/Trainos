@@ -151,17 +151,7 @@ const isValidResponse = (response: unknown) => {
   return true;
 };
 
-const fetchTrainingMetrics = async () => {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
-  const url = `${baseUrl.replace(/\/$/, "")}/api/garmin/training`;
-  const response = await fetch(url, { cache: "no-store" });
-  if (!response.ok) {
-    throw new Error(`Training metrics fetch failed with ${response.status}`);
-  }
-  const data = await response.json();
-  console.log("[Garmin] /api/garmin/training returned:", data);
-  return data;
-};
+import { fetchTrainingMetricsService } from "../../../lib/training-metrics";
 
 const extractLatestResponseValue = (response: unknown, ...keys: string[]) => {
   if (Array.isArray(response)) {
@@ -368,18 +358,17 @@ const fetchGarminData = async () => {
   const vo2MaxResult = await safeFetch("vo2MaxData", () => fetchVo2MaxData(client, today));
   const trainingReadinessResult = await safeFetch("trainingReadinessData", () => fetchTrainingReadinessData(client, today));
   const trainingLoadResult = await safeFetch("trainingLoadData", () => fetchTrainingLoadData(client, today));
-  const trainingMetricsResult = await safeFetch("trainingMetricsData", () => fetchTrainingMetrics());
+  const trainingMetricsResult = await safeFetch("trainingMetricsData", () => fetchTrainingMetricsService());
   const heartRateResult = await safeFetch("heartRateData", () => client.getHeartRate(today));
 
   const activities = (activitiesResult.data ?? []) as unknown[];
   const sleepData = sleepResult.data;
   const bodyBatteryData = bodyBatteryResult.data;
   const vo2MaxData = vo2MaxResult.data;
-  const trainingReadinessData =
-    trainingMetricsResult.data?.trainingReadiness ?? trainingMetricsResult.data?.training_readiness?.data ?? trainingReadinessResult.data;
-  const trainingLoadData =
-    trainingMetricsResult.data?.trainingLoad ?? trainingMetricsResult.data?.training_status?.data ?? trainingLoadResult.data;
-  const trainingMetricsRaw = trainingMetricsResult.data ?? null;
+  const tmData: any = trainingMetricsResult.data;
+  const trainingReadinessData = tmData?.trainingReadiness ?? tmData?.training_readiness?.data ?? trainingReadinessResult.data;
+  const trainingLoadData = tmData?.trainingLoad ?? tmData?.training_status?.data ?? trainingLoadResult.data;
+  const trainingMetricsRaw = tmData ?? null;
   const heartRateData = heartRateResult.data;
 
   console.log("[Garmin] raw sleepData:", sleepData);
