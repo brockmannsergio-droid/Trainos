@@ -53,39 +53,15 @@ export async function fetchTrainingMetricsService(): Promise<{ trainingReadiness
     readiness = { score, level };
   }
 
-  // extract training load
+  // extract training load (use Render service "raw" wrapper if present)
   let load: TrainingLoad = null;
-  const tlCandidates = [payload?.trainingLoad, payload?.training_load, payload?.training_status, payload?.training_status?.data, payload];
-  let found: any = null;
-  for (const c of tlCandidates) {
-    if (!c) continue;
-    // if simplified
-    if (typeof c === "object" && (c.acute !== undefined || c.chronic !== undefined || c.dailyTrainingLoadAcute !== undefined)) {
-      const acute = getNumber(c, "acute", "dailyTrainingLoadAcute", "acuteLoad");
-      const chronic = getNumber(c, "chronic", "dailyTrainingLoadChronic", "chronicLoad");
-      found = { acute, chronic };
-      break;
-    }
-    // raw structure with latestTrainingStatusData
-    const latest = c?.mostRecentTrainingStatus?.latestTrainingStatusData ?? c?.latestTrainingStatusData ?? c?.latestTrainingStatus ?? c?.trainingStatus ?? null;
-    if (latest) {
-      // latest can be an array or an object keyed by device id. prefer the first device entry.
-      let deviceData: any = null;
-      if (Array.isArray(latest) && latest.length) deviceData = latest[0];
-      else if (typeof latest === "object") {
-        const vals = Object.values(latest);
-        if (vals.length) deviceData = vals[0];
-      }
-      if (deviceData) {
-        const acute = deviceData?.acuteTrainingLoadDTO?.dailyTrainingLoadAcute ?? getNumber(deviceData?.acuteTrainingLoadDTO ?? deviceData, "dailyTrainingLoadAcute", "dailyTrainingLoad", "acute");
-        const chronic = deviceData?.acuteTrainingLoadDTO?.dailyTrainingLoadChronic ?? getNumber(deviceData?.acuteTrainingLoadDTO ?? deviceData, "dailyTrainingLoadChronic", "chronicLoad", "chronic");
-        found = { acute, chronic };
-        break;
-      }
-    }
+  const rawStatus = payload?.trainingLoad?.raw?.trainingStatus ?? payload?.trainingStatus ?? payload?.raw?.trainingStatus;
+  if (rawStatus?.latestTrainingStatusData) {
+    const deviceData = Object.values(rawStatus.latestTrainingStatusData)[0] as any;
+    const acute = deviceData?.acuteTrainingLoadDTO?.dailyTrainingLoadAcute;
+    const chronic = deviceData?.acuteTrainingLoadDTO?.dailyTrainingLoadChronic;
+    load = { acute: acute ?? null, chronic: chronic ?? null };
   }
-
-  if (found) load = { acute: found.acute ?? null, chronic: found.chronic ?? null };
 
   return { trainingReadiness: readiness, trainingLoad: load, raw: payload };
 }
