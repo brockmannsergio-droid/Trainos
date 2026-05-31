@@ -537,7 +537,7 @@ const fetchGarminData = async () => {
     trainingReadiness: {
       score: trainingReadinessScore,
       status: trainingReadinessStatus ?? null,
-      available: trainingReadinessAvailable,
+      available: trainingReadinessScore != null,
       raw: trainingMetricsRaw ?? trainingReadinessData,
     },
     trainingLoad: {
@@ -545,7 +545,7 @@ const fetchGarminData = async () => {
       chronic: trainingLoadChronic,
       weekly: trainingLoadWeekly,
       trend: trainingLoadTrend ?? null,
-      available: trainingLoadAvailable,
+      available: trainingLoadAcute != null,
       raw: trainingMetricsRaw ?? trainingLoadData,
     },
     weeklySummary: {

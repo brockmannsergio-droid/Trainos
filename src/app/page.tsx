@@ -93,10 +93,11 @@ const getVo2MaxValue = (vo2Max?: { value?: number | string | null; available?: b
   return String(vo2Max.value);
 };
 
-const getTrainingReadinessValue = (readiness?: { score?: number | string | null; status?: string | null; available?: boolean }) => {
+const getTrainingReadinessValue = (readiness?: { score?: number | string | null; status?: string | null; available?: boolean; level?: string | null }) => {
   if (!readiness) return "—";
   if (readiness.available === false) return "N/A";
   if (readiness.score != null) return String(readiness.score);
+  if ((readiness as any).level) return (readiness as any).level;
   if (readiness.status) return readiness.status;
   return "—";
 };
