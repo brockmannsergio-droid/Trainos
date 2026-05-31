@@ -373,8 +373,10 @@ const fetchGarminData = async () => {
   const sleepData = sleepResult.data;
   const bodyBatteryData = bodyBatteryResult.data;
   const vo2MaxData = vo2MaxResult.data;
-  const trainingReadinessData = trainingMetricsResult.data?.training_readiness?.data ?? trainingReadinessResult.data;
-  const trainingLoadData = trainingMetricsResult.data?.training_status?.data ?? trainingLoadResult.data;
+  const trainingReadinessData =
+    trainingMetricsResult.data?.trainingReadiness ?? trainingMetricsResult.data?.training_readiness?.data ?? trainingReadinessResult.data;
+  const trainingLoadData =
+    trainingMetricsResult.data?.trainingLoad ?? trainingMetricsResult.data?.training_status?.data ?? trainingLoadResult.data;
   const trainingMetricsRaw = trainingMetricsResult.data ?? null;
   const heartRateData = heartRateResult.data;
 
@@ -411,17 +413,45 @@ const fetchGarminData = async () => {
   const vo2MaxTrend = getValue(vo2MaxData as Record<string, any>, "trend", "trendDirection", "status");
   const vo2MaxAvailable = vo2MaxValue != null;
 
+  // Training readiness: accept simplified service format or raw arrays/objects
   const trainingReadinessScore = extractLatestResponseValue(trainingReadinessData, "score", "trainingReadiness", "value", "readiness");
-  const trainingReadinessStatus = extractLatestResponseField(trainingReadinessData, "level", "status", "trainingStatus", "readinessStatus", "state");
+  const trainingReadinessStatus = extractLatestResponseField(
+    trainingReadinessData,
+    "level",
+    "status",
+    "trainingStatus",
+    "readinessStatus",
+    "state"
+  );
   const trainingReadinessAvailable = trainingReadinessScore != null || trainingReadinessStatus != null;
 
-  const firstTrainingStatusData = (trainingLoadData as Record<string, any>)?.mostRecentTrainingStatus?.latestTrainingStatusData;
-  const trainingStatusDevice = firstTrainingStatusData && typeof firstTrainingStatusData === "object" ? Object.values(firstTrainingStatusData)[0] : null;
-  const acuteTrainingLoadSource = (trainingStatusDevice as Record<string, any>)?.acuteTrainingLoadDTO ?? trainingStatusDevice;
-  const trainingLoadAcute = getNumberValue(acuteTrainingLoadSource as Record<string, any>, "dailyTrainingLoadAcute", "acuteLoad", "trainingLoad", "load", "dailyTrainingLoad");
-  const trainingLoadChronic = getNumberValue(acuteTrainingLoadSource as Record<string, any>, "dailyTrainingLoadChronic", "chronicLoad", "maxTrainingLoadChronic", "dailyTrainingLoadChronic");
-  const trainingLoadWeekly = getNumberValue(trainingStatusDevice as Record<string, any>, "weeklyTrainingLoad", "weeklyLoad", "loadWeekly", "weekLoad");
-  const trainingLoadTrend = getValue(trainingLoadData as Record<string, any>, "trend", "trendDirection", "status");
+  // Training load: handle simplified `{ acute, chronic }` or the raw Garmin structures
+  let trainingLoadAcute: number | null = null;
+  let trainingLoadChronic: number | null = null;
+  let trainingLoadWeekly: number | null = null;
+  let trainingLoadTrend: string | null = null;
+
+  if (trainingLoadData && typeof trainingLoadData === "object") {
+    // simplified service format
+    trainingLoadAcute = getNumberValue(trainingLoadData as Record<string, any>, "acute", "dailyTrainingLoadAcute", "acuteLoad");
+    trainingLoadChronic = getNumberValue(trainingLoadData as Record<string, any>, "chronic", "dailyTrainingLoadChronic", "chronicLoad");
+    trainingLoadWeekly = getNumberValue(trainingLoadData as Record<string, any>, "weekly", "weeklyTrainingLoad", "weeklyLoad");
+    const trendVal = getValue(trainingLoadData as Record<string, any>, "trend", "trendDirection", "status");
+    trainingLoadTrend = typeof trendVal === "string" ? trendVal : trendVal != null ? String(trendVal) : null;
+
+    // if simplified not present, try to extract from Garmin's nested structure
+    if (trainingLoadAcute == null && trainingLoadChronic == null) {
+      const firstTrainingStatusData = (trainingLoadData as Record<string, any>)?.mostRecentTrainingStatus?.latestTrainingStatusData;
+      const trainingStatusDevice = firstTrainingStatusData && typeof firstTrainingStatusData === "object" ? Object.values(firstTrainingStatusData)[0] : null;
+      const acuteTrainingLoadSource = (trainingStatusDevice as Record<string, any>)?.acuteTrainingLoadDTO ?? trainingStatusDevice;
+      trainingLoadAcute = getNumberValue(acuteTrainingLoadSource as Record<string, any>, "dailyTrainingLoadAcute", "acuteLoad", "trainingLoad", "load", "dailyTrainingLoad");
+      trainingLoadChronic = getNumberValue(acuteTrainingLoadSource as Record<string, any>, "dailyTrainingLoadChronic", "chronicLoad", "maxTrainingLoadChronic", "dailyTrainingLoadChronic");
+      trainingLoadWeekly = getNumberValue(trainingStatusDevice as Record<string, any>, "weeklyTrainingLoad", "weeklyLoad", "loadWeekly", "weekLoad");
+      const trendVal2 = getValue(trainingLoadData as Record<string, any>, "trend", "trendDirection", "status");
+      trainingLoadTrend = trainingLoadTrend ?? (typeof trendVal2 === "string" ? trendVal2 : trendVal2 != null ? String(trendVal2) : null);
+    }
+  }
+
   const trainingLoadAvailable = trainingLoadAcute != null || trainingLoadChronic != null || trainingLoadWeekly != null;
 
   return {
