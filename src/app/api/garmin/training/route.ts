@@ -23,7 +23,8 @@ export async function GET() {
   const remoteUrl = process.env.TRAINING_METRICS_SERVICE_URL;
 
   if (remoteUrl) {
-    const response = await fetch(remoteUrl, {
+    const requestUrl = `${remoteUrl.replace(/\/$/, "")}/training-metrics`;
+    const response = await fetch(requestUrl, {
       cache: "no-store",
     });
 
