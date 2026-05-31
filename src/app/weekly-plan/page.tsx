@@ -1,0 +1,151 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import DailyCheckin from "../../components/DailyCheckin";
+
+const feelings = ["Great", "Good", "Okay", "Tired", "Very tired", "Injured"];
+
+export default function WeeklyPlanPage() {
+  const [feeling, setFeeling] = useState<string>(feelings[2]);
+  const [availability, setAvailability] = useState<string>("");
+  const [physicalNotes, setPhysicalNotes] = useState<string>("");
+  const [trainingPhase, setTrainingPhase] = useState<string>("");
+  const [goal, setGoal] = useState<string>("");
+  const [plan, setPlan] = useState<any | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [expandedDay, setExpandedDay] = useState<number | null>(null);
+
+  const submit = async (e: any) => {
+    e?.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    try {
+      // fetch current Garmin metrics and include in request
+      const gResp = await fetch("/api/garmin");
+      const garmin = await gResp.json();
+
+      const resp = await fetch("/api/generate-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          garmin,
+          feeling,
+          availability,
+          physicalNotes,
+          trainingPhase,
+          goal,
+        }),
+      });
+
+      const payload = await resp.json();
+      if (!resp.ok) throw new Error(payload?.error || "Failed to generate plan");
+      const finalPlan = payload.plan ?? payload;
+      setPlan(finalPlan);
+      try {
+        localStorage.setItem('weeklyPlan', JSON.stringify(finalPlan));
+      } catch {}
+    } catch (err: any) {
+      setError(err.message ?? String(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('weeklyPlan');
+      if (stored) setPlan(JSON.parse(stored));
+    } catch {}
+  }, []);
+
+  return (
+    <main className="min-h-screen bg-slate-950 text-slate-100 p-6">
+      <div className="mx-auto max-w-4xl">
+        <h1 className="text-3xl font-semibold">Plan My Week</h1>
+        <p className="mt-2 text-sm text-slate-400">Create a structured 7-day plan based on your availability and Garmin metrics.</p>
+
+        <form onSubmit={submit} className="mt-6 grid gap-4">
+          <div className="flex items-center gap-3">
+            <label className="text-sm text-slate-400">Feeling</label>
+            <select value={feeling} onChange={(e) => setFeeling(e.target.value)} className="rounded-2xl border border-slate-800 bg-slate-900/60 px-3 py-2 text-sm">
+              {feelings.map((f) => <option key={f} value={f}>{f}</option>)}
+            </select>
+          </div>
+
+          <textarea placeholder={"Tell me about your week — when you're planning to\ntrain, any commitments, travel, gym sessions, or\nanything that affects your schedule..."}
+            value={availability}
+            onChange={(e) => setAvailability(e.target.value)}
+            className="min-h-[120px] rounded-2xl border border-slate-800 bg-slate-900/60 p-3 text-sm text-slate-200"
+          />
+
+          <textarea placeholder={"Any injuries, soreness or physical notes?"}
+            value={physicalNotes}
+            onChange={(e) => setPhysicalNotes(e.target.value)}
+            className="min-h-[80px] rounded-2xl border border-slate-800 bg-slate-900/60 p-3 text-sm text-slate-200"
+          />
+
+          <input placeholder="Training phase (e.g. base, build, race)" value={trainingPhase} onChange={(e) => setTrainingPhase(e.target.value)} className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3 text-sm text-slate-200" />
+          <input placeholder="Goal (e.g. 5k PR, build endurance)" value={goal} onChange={(e) => setGoal(e.target.value)} className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3 text-sm text-slate-200" />
+
+          <div className="flex items-center gap-3">
+            <button disabled={loading} className="rounded-2xl bg-slate-700 px-4 py-2 text-sm disabled:opacity-60" type="submit">
+              {loading ? (
+                <span className="inline-flex items-center gap-2">
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-600 border-t-slate-300"></span>
+                  Generating…
+                </span>
+              ) : (
+                "Generate plan"
+              )}
+            </button>
+            {error ? <span className="text-sm text-rose-400">{error}</span> : null}
+          </div>
+        </form>
+
+        {plan?.days ? (
+          <div className="mt-8 grid gap-4 md:grid-cols-2">
+            {plan.days.map((d: any, idx: number) => (
+              <div key={idx} className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm text-slate-400">{d.day}</div>
+                    <div className="mt-1 text-lg font-semibold text-white">{d.type} — {d.sport}</div>
+                  </div>
+                  <div className="text-sm text-slate-300">{d.duration ?? "—"}</div>
+                </div>
+
+                <div className="mt-3 text-sm text-slate-300">{d.description?.slice?.(0, 120) ?? d.description}</div>
+
+                <div className="mt-3 flex items-center gap-2">
+                  <button className="text-sm text-slate-100 underline" onClick={() => setExpandedDay(expandedDay === idx ? null : idx)}>
+                    {expandedDay === idx ? "Hide details" : "View details"}
+                  </button>
+                  <div className="text-sm text-slate-400">TSS: {d.tss ?? "—"}</div>
+                </div>
+
+                {expandedDay === idx ? (
+                  <div className="mt-3 rounded-xl bg-slate-950/50 p-3 text-sm text-slate-200">
+                    <div className="font-medium">Warm up</div>
+                    <div className="mt-1">{d.workout?.warmup ?? "—"}</div>
+                    <div className="mt-2 font-medium">Main set</div>
+                    <div className="mt-1">{d.workout?.main ?? d.description ?? "—"}</div>
+                    <div className="mt-2 font-medium">Cool down</div>
+                    <div className="mt-1">{d.workout?.cooldown ?? "—"}</div>
+                    {d.why ? (
+                      <>
+                        <div className="mt-3 font-medium">Why</div>
+                        <div className="mt-1">{d.why}</div>
+                      </>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </main>
+  );
+}

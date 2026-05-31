@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import DailyCheckin from "../components/DailyCheckin";
+import Link from "next/link";
 import { LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
 type GarminData = {
@@ -266,15 +268,19 @@ export default function Home() {
             </div>
           </div>
           <nav className="space-y-2">
-            {navItems.map((item) => (
-              <button
-                key={item}
-                className="flex w-full items-center justify-between rounded-3xl border border-slate-800 bg-slate-950/70 px-4 py-3 text-left text-sm text-slate-100 transition hover:border-slate-600 hover:bg-slate-900"
-              >
-                <span>{item}</span>
-                <span className="text-slate-500">→</span>
-              </button>
-            ))}
+            {navItems.map((item) => {
+              const href = item === 'Dashboard' ? '/' : item === 'Weekly Plan' ? '/plan' : item === 'Recovery' ? '/recovery' : item === 'Activities' ? '/activities' : item === 'Profile' ? '/profile' : '/';
+              return (
+                <Link
+                  key={item}
+                  href={href}
+                  className="flex w-full items-center justify-between rounded-3xl border border-slate-800 bg-slate-950/70 px-4 py-3 text-left text-sm text-slate-100 transition hover:border-slate-600 hover:bg-slate-900"
+                >
+                  <span>{item}</span>
+                  <span className="text-slate-500">→</span>
+                </Link>
+              );
+            })}
           </nav>
           <div className="rounded-3xl border border-slate-800 bg-slate-950/80 p-4 text-sm text-slate-400">
             <p className="font-medium text-slate-100">Next session</p>
@@ -292,8 +298,13 @@ export default function Home() {
                   Connect directly to Garmin and see your latest HRV, sleep score, body battery, stress, and recent activity load.
                 </p>
               </div>
-              <div className="rounded-3xl border border-slate-800 bg-slate-950/70 px-4 py-3 text-sm text-slate-300">
-                {loading ? "Refreshing data…" : error ? "Last sync failed" : `Last synced: ${new Date().toLocaleTimeString()}`}
+              <div className="flex items-center gap-4">
+                <div className="rounded-3xl border border-slate-800 bg-slate-950/70 px-4 py-3 text-sm text-slate-300">
+                  {loading ? "Refreshing data…" : error ? "Last sync failed" : `Last synced: ${new Date().toLocaleTimeString()}`}
+                </div>
+                <div className="rounded-3xl border border-slate-800 bg-slate-900/60 px-4 py-3">
+                  <DailyCheckin />
+                </div>
               </div>
             </div>
             {loading ? (
