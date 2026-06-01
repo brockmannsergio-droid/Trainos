@@ -60,6 +60,22 @@ export default function WeeklyPlanPage() {
     } catch {}
   }, []);
 
+  const downloadPlan = () => {
+    if (!plan) return;
+    const blob = new Blob([JSON.stringify(plan, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'weekly-plan.json';
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const clearPlan = () => {
+    localStorage.removeItem('weeklyPlan');
+    setPlan(null);
+  };
+
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 p-6">
       <div className="mx-auto max-w-4xl">
@@ -89,7 +105,7 @@ export default function WeeklyPlanPage() {
           <input placeholder="Training phase (e.g. base, build, race)" value={trainingPhase} onChange={(e) => setTrainingPhase(e.target.value)} className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3 text-sm text-slate-200" />
           <input placeholder="Goal (e.g. 5k PR, build endurance)" value={goal} onChange={(e) => setGoal(e.target.value)} className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3 text-sm text-slate-200" />
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <button disabled={loading} className="rounded-2xl bg-slate-700 px-4 py-2 text-sm disabled:opacity-60" type="submit">
               {loading ? (
                 <span className="inline-flex items-center gap-2">
@@ -99,6 +115,12 @@ export default function WeeklyPlanPage() {
               ) : (
                 "Generate plan"
               )}
+            </button>
+            <button type="button" onClick={downloadPlan} disabled={!plan} className="rounded-2xl border border-slate-700 bg-slate-800 px-4 py-2 text-sm text-slate-100 disabled:opacity-50">
+              Export plan
+            </button>
+            <button type="button" onClick={clearPlan} disabled={!plan} className="rounded-2xl border border-rose-700 bg-rose-900 px-4 py-2 text-sm text-rose-100 disabled:opacity-50">
+              Clear saved plan
             </button>
             {error ? <span className="text-sm text-rose-400">{error}</span> : null}
           </div>
@@ -113,7 +135,7 @@ export default function WeeklyPlanPage() {
                     <div className="text-sm text-slate-400">{d.day}</div>
                     <div className="mt-1 text-lg font-semibold text-white">{d.type} — {d.sport}</div>
                   </div>
-                  <div className="text-sm text-slate-300">{d.duration ?? "—"}</div>
+                  <div className="text-sm text-slate-300">{d.duration != null ? `${d.duration}m` : '—'}</div>
                 </div>
 
                 <div className="mt-3 text-sm text-slate-300">{d.description?.slice?.(0, 120) ?? d.description}</div>
