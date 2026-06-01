@@ -26,17 +26,20 @@ export default function WeeklyPlanPage() {
       const gResp = await fetch("/api/garmin");
       const garmin = await gResp.json();
 
+      const requestBody = {
+        feeling,
+        weeklyNotes,
+        physicalNotes,
+        goal,
+        currentFocus,
+        garmin,
+      };
+      console.log("Sending /api/generate-plan payload:", requestBody);
+
       const resp = await fetch("/api/generate-plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          garmin,
-          feeling,
-          weeklyNotes,
-          physicalNotes,
-          currentFocus,
-          goal,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       const payload = await resp.json();
