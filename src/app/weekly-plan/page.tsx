@@ -15,6 +15,10 @@ export default function WeeklyPlanPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedDay, setExpandedDay] = useState<number | null>(null);
+  const [sendModalOpen, setSendModalOpen] = useState(false);
+  const [modalWorkout, setModalWorkout] = useState<any | null>(null);
+  const [modalDate, setModalDate] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const submit = async (e: any) => {
     e?.preventDefault();
@@ -58,6 +62,53 @@ export default function WeeklyPlanPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const getNextDateForWeekday = (weekdayName: string) => {
+    const names = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+    const target = names.indexOf(String(weekdayName || '').toLowerCase());
+    const today = new Date();
+    if (target === -1) return today.toISOString().slice(0,10);
+    const day = today.getDay();
+    let diff = (target - day + 7) % 7;
+    if (diff === 0) diff = 7; // next occurrence
+    const d = new Date();
+    d.setDate(d.getDate() + diff);
+    return d.toISOString().slice(0,10);
+  };
+
+  const openSendModal = (workout: any) => {
+    setModalWorkout(workout);
+    setModalDate(getNextDateForWeekday(workout?.day));
+    setSendModalOpen(true);
+    setSuccessMessage(null);
+  };
+
+  const sendToGarmin = async (workout: any, date: string) => {
+    try {
+      const resp = await fetch('/api/send-to-garmin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workout, date }),
+      });
+      const payload = await resp.json();
+      if (!resp.ok) throw new Error(payload?.error || JSON.stringify(payload));
+      setSuccessMessage(`✅ Sent to Forerunner 970 for ${date}!`);
+      return true;
+    } catch (err: any) {
+      setSuccessMessage(String(err?.message ?? err));
+      return false;
+    }
+  };
+
+  const sendFullWeek = async () => {
+    if (!plan?.days) return;
+    setSuccessMessage(null);
+    for (const d of plan.days) {
+      const date = getNextDateForWeekday(d.day);
+      await sendToGarmin(d, date);
+    }
+    setSuccessMessage('✅ Sent full week to Forerunner 970!');
   };
 
   useEffect(() => {
@@ -126,6 +177,9 @@ export default function WeeklyPlanPage() {
             <button type="button" onClick={downloadPlan} disabled={!plan} className="rounded-2xl border border-slate-700 bg-slate-800 px-4 py-2 text-sm text-slate-100 disabled:opacity-50">
               Export plan
             </button>
+            <button type="button" onClick={sendFullWeek} disabled={!plan} className="rounded-2xl border border-emerald-600 bg-emerald-700 px-4 py-2 text-sm text-emerald-100 disabled:opacity-50">
+              Send full week to Garmin ⌚
+            </button>
             <button type="button" onClick={clearPlan} disabled={!plan} className="rounded-2xl border border-rose-700 bg-rose-900 px-4 py-2 text-sm text-rose-100 disabled:opacity-50">
               Clear saved plan
             </button>
@@ -151,6 +205,9 @@ export default function WeeklyPlanPage() {
                   <button className="text-sm text-slate-100 underline" onClick={() => setExpandedDay(expandedDay === idx ? null : idx)}>
                     {expandedDay === idx ? "Hide details" : "View details"}
                   </button>
+                  <button className="text-sm text-emerald-200 underline" onClick={() => openSendModal(d)}>
+                    Send to Garmin ⌚
+                  </button>
                   <div className="text-sm text-slate-400">TSS: {d.tss ?? "—"}</div>
                 </div>
 
@@ -172,6 +229,28 @@ export default function WeeklyPlanPage() {
                 ) : null}
               </div>
             ))}
+          </div>
+        ) : null}
+        {sendModalOpen && modalWorkout ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+            <div className="w-full max-w-md rounded-xl bg-slate-900 p-6 text-slate-100">
+              <h3 className="text-lg font-semibold">Send workout to Garmin</h3>
+              <p className="mt-2 text-sm text-slate-400">{modalWorkout.day} — {modalWorkout.type} — {modalWorkout.sport}</p>
+
+              <div className="mt-4">
+                <label className="text-sm text-slate-400">Schedule date</label>
+                <input className="mt-1 w-full rounded-md bg-slate-800 p-2 text-sm text-white" type="date" value={modalDate ?? ''} onChange={(e) => setModalDate(e.target.value)} min={new Date().toISOString().slice(0,10)} max={(() => { const d=new Date(); d.setDate(d.getDate()+14); return d.toISOString().slice(0,10); })()} />
+              </div>
+
+              {successMessage ? <div className="mt-3 text-sm text-emerald-300">{successMessage}</div> : null}
+
+              <div className="mt-4 flex justify-end gap-3">
+                <button className="rounded-2xl border border-slate-700 px-4 py-2 text-sm" onClick={() => { setSendModalOpen(false); setModalWorkout(null); setSuccessMessage(null); }}>Cancel</button>
+                <button className="rounded-2xl bg-emerald-600 px-4 py-2 text-sm" onClick={async () => { if (!modalWorkout || !modalDate) return; await sendToGarmin(modalWorkout, modalDate); }}>
+                  Send to Garmin
+                </button>
+              </div>
+            </div>
           </div>
         ) : null}
       </div>

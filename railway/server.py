@@ -2,7 +2,7 @@ import os
 import sys
 from pathlib import Path
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 
 root_dir = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(root_dir))
@@ -56,6 +56,36 @@ def training_metrics():
         return jsonify(metrics)
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
+
+
+    @app.route("/send-workout", methods=["POST"])
+    def send_workout():
+        email = os.environ.get("GARMIN_EMAIL")
+        password = os.environ.get("GARMIN_PASSWORD")
+
+        if not email or not password:
+            return jsonify({"error": "GARMIN_EMAIL and GARMIN_PASSWORD must be set in environment variables"}), 400
+
+        payload = request.get_json(silent=True)
+        if not payload:
+            return jsonify({"error": "Invalid JSON payload"}), 400
+
+        workout = payload.get("workout")
+        date = payload.get("date")
+        if not workout or not date:
+            return jsonify({"error": "Missing workout or date"}), 400
+
+        try:
+            client = Garmin(email=email, password=password)
+            client.login()
+            # Expecting Garmin client to expose add_workout(workout, date)
+            if not hasattr(client, 'add_workout'):
+                return jsonify({"error": "Garmin client does not support add_workout on this environment"}), 500
+
+            result = client.add_workout(workout, date)
+            return jsonify({"ok": True, "result": result})
+        except Exception as exc:
+            return jsonify({"error": str(exc)}), 500
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
