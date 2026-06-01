@@ -16,11 +16,35 @@ export async function POST(request: Request) {
   try {
     const body: PlanRequest = await request.json();
 
-    const systemPrompt = `You are an expert endurance coach. Produce a single JSON object describing a 7-day polarized training plan. Follow these rules EXACTLY:\n1) Return ONLY valid JSON with no surrounding explanatory text.\n2) The JSON must match this schema exactly:\n{ "days": [ { "day": "Monday", "type": "easy|hard|long|rest|tempo", "sport": "run|ride|rest", "duration": 45, "zones": "Z1-Z2", "description": "...", "tss": 40, "workout": { "warmup": "...", "main": "...", "cooldown": "..." } } ] }\n3) "days" must contain 7 objects (one per day).\n4) Use numbers for durations (minutes) and tss. Use strings for zones and description. If a field is not applicable, set it to null (do not omit keys).\n5) Respect the user's availability and physical notes; do not schedule two hard sessions back-to-back; keep polarized distribution ~80% easy, ~20% hard.`;
+    const systemPrompt = `You are an expert endurance coach. Produce a single JSON object describing a 7-day polarized training plan.
+
+CRITICAL FORMATTING RULES:
+- Return ONLY a valid JSON object. No markdown, no backticks, no code blocks, no explanation, no commentary.
+- Start your response with { and end with }
+- Do NOT wrap JSON in triple backticks or markdown
+- Do NOT include any text before or after the JSON
+
+SCHEMA:
+{ "days": [ { "day": "Monday", "type": "easy|hard|long|rest|tempo", "sport": "run|ride|rest", "duration": 45, "zones": "Z1-Z2", "description": "...", "tss": 40, "workout": { "warmup": "...", "main": "...", "cooldown": "..." } } ] }
+
+REQUIREMENTS:
+1) days: array of exactly 7 objects (Monday-Sunday)
+2) type: one of easy, hard, long, rest, tempo (lowercase)
+3) sport: one of run, ride, rest (lowercase)
+4) duration: number (minutes)
+5) zones: string (e.g., "Z1-Z2", "Z3", "Zone 2 easy")
+6) description: string with workout summary
+7) tss: number (training stress score)
+8) workout.warmup, workout.main, workout.cooldown: strings or null
+
+TRAINING RULES:
+- Keep ~80% easy, ~20% hard sessions
+- No hard sessions back-to-back
+- Respect user's availability and physical notes`;
 
     const userContext = `Garmin metrics: ${JSON.stringify(body.garmin)}\nAvailability/notes: ${body.availability}\nPhysical notes: ${body.physicalNotes || 'none'}\nFeeling: ${body.feeling}\nTraining phase: ${body.trainingPhase || 'unspecified'}\nGoal: ${body.goal || 'general fitness'}`;
 
-    const prompt = `${systemPrompt}\n\n${userContext}\n\nRespond with valid JSON only, exactly following the schema above.`;
+    const prompt = `${systemPrompt}\n\n${userContext}\n\nRespond with ONLY a valid JSON object. No markdown, no backticks, no explanation. Start with { and end with }`;
 
     const validatePlan = (obj: any) => {
       if (!obj || typeof obj !== 'object') return false;

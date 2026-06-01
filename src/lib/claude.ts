@@ -39,11 +39,14 @@ export async function callClaudeWithRetry(rawPrompt: string, validate?: (obj: an
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
       const text = await callOnce(rawPrompt);
+      console.log(`[Claude Response - Attempt ${attempt}] Raw text (first 500 chars):`, text.substring(0, 500));
       const parsed = extractJson(text);
       if (parsed && (!validate || validate(parsed))) return parsed;
+      console.log(`[Claude Parsing] Failed to extract or validate JSON on attempt ${attempt}`);
       lastErr = new Error('Unable to parse valid JSON from Claude');
     } catch (err: any) {
       lastErr = err;
+      console.log(`[Claude Error - Attempt ${attempt}]:`, err.message);
       await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 200));
     }
   }
