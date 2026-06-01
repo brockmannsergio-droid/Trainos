@@ -12,6 +12,80 @@ type PlanRequest = {
   goal?: string;
 };
 
+const safeNumber = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim() !== '' && !Number.isNaN(Number(value))) return Number(value);
+  return null;
+};
+
+const safeString = (value: unknown): string | null => {
+  if (typeof value === 'string' && value.trim() !== '') return value.trim();
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return null;
+};
+
+const summarizeGarminForPrompt = (garmin?: Record<string, any>) => {
+  const latestFitness = Array.isArray(garmin?.fitness) && garmin.fitness.length ? garmin.fitness[garmin.fitness.length - 1] : garmin?.fitness;
+
+  const ctl = safeNumber(latestFitness?.ctl ?? latestFitness?.CTL ?? garmin?.ctl);
+  const atl = safeNumber(latestFitness?.atl ?? latestFitness?.ATL ?? garmin?.atl);
+  const tsb = safeNumber(latestFitness?.tsb ?? latestFitness?.TSB ?? garmin?.tsb);
+
+  const hrv = safeNumber(garmin?.sleep?.hrvValue ?? garmin?.sleep?.hrv ?? garmin?.hrv);
+  const sleepScore = safeNumber(garmin?.sleep?.score ?? garmin?.sleep?.sleepScore ?? garmin?.sleepScore);
+  const bodyBattery = safeNumber(garmin?.sleep?.bodyBatteryLatest ?? garmin?.bodyBattery?.value ?? garmin?.bodyBatteryLatest ?? garmin?.bodyBattery);
+  const stress = safeNumber(garmin?.sleep?.stressValue ?? garmin?.sleep?.stress ?? garmin?.stress?.value ?? garmin?.stress);
+
+  const restingHr = safeNumber(garmin?.restingHeartRate?.value ?? garmin?.restingHeartRate ?? garmin?.restingHr);
+  const vo2Max = safeNumber(garmin?.vo2Max?.value ?? garmin?.vo2Max ?? garmin?.vo2MaxRunning?.value ?? garmin?.vo2MaxRunning);
+  const vo2MaxRunning = safeNumber(garmin?.vo2MaxRunning?.value ?? garmin?.vo2MaxRunning);
+  const vo2MaxCycling = safeNumber(garmin?.vo2MaxCycling?.value ?? garmin?.vo2MaxCycling);
+
+  const readinessScore = safeNumber(
+    garmin?.trainingReadiness?.score ??
+    garmin?.trainingReadiness?.trainingReadiness ??
+    garmin?.trainingReadiness?.value ??
+    garmin?.trainingReadinessScore
+  );
+  const readinessLevel = safeString(
+    garmin?.trainingReadiness?.status ??
+    garmin?.trainingReadiness?.level ??
+    garmin?.trainingReadiness?.state ??
+    garmin?.trainingReadiness?.statusText
+  );
+
+  const weeklyDistance = safeNumber(garmin?.weeklySummary?.totalDistance ?? garmin?.weeklySummary?.distance ?? garmin?.weeklySummary?.totalDistanceKm);
+  let weeklyTime = safeNumber(garmin?.weeklySummary?.totalTime ?? garmin?.weeklySummary?.totalTimeMinutes ?? garmin?.weeklySummary?.totalTimeSeconds);
+  if (weeklyTime != null && weeklyTime > 10000) weeklyTime = Number((weeklyTime / 60).toFixed(1));
+
+  const activities = Array.isArray(garmin?.activities)
+    ? garmin.activities.slice(0, 3).map((activity: any) => ({
+        name: safeString(activity.name ?? activity.activityName ?? activity.title ?? activity.displayName ?? activity.activityType) ?? 'Unknown activity',
+        duration: safeNumber(activity.duration ?? activity.elapsedDuration ?? activity.activeDuration ?? activity.elapsedTime ?? activity.totalTime) ?? 0,
+        distance: safeNumber(activity.distance ?? activity.totalDistance ?? activity.distanceKm ?? activity.distanceMeters ?? activity.distance_meters) ?? 0,
+      }))
+    : [];
+
+  return {
+    ctl,
+    atl,
+    tsb,
+    hrv,
+    sleepScore,
+    bodyBattery,
+    stress,
+    restingHr,
+    vo2Max,
+    vo2MaxRunning,
+    vo2MaxCycling,
+    readinessScore,
+    readinessLevel,
+    weeklyDistance,
+    weeklyTime,
+    activities,
+  };
+};
+
 export async function POST(request: Request) {
   try {
     const body: PlanRequest = await request.json();
@@ -42,7 +116,8 @@ TRAINING RULES:
 - No hard sessions back-to-back
 - Respect user's availability and physical notes`;
 
-    const userContext = `Garmin metrics: ${JSON.stringify(body.garmin)}\nWeekly notes: ${body.weeklyNotes}\nPhysical notes: ${body.physicalNotes || 'none'}\nFeeling: ${body.feeling}\nCurrent focus: ${body.currentFocus || 'unspecified'}\nGoal: ${body.goal || 'general fitness'}`;
+    const garminSummary = summarizeGarminForPrompt(body.garmin);
+    const userContext = `Garmin summary:\n- CTL: ${garminSummary.ctl ?? 'unknown'}\n- ATL: ${garminSummary.atl ?? 'unknown'}\n- TSB: ${garminSummary.tsb ?? 'unknown'}\n- HRV: ${garminSummary.hrv ?? 'unknown'}\n- Sleep score: ${garminSummary.sleepScore ?? 'unknown'}\n- Body battery: ${garminSummary.bodyBattery ?? 'unknown'}\n- Stress: ${garminSummary.stress ?? 'unknown'}\n- Resting HR: ${garminSummary.restingHr ?? 'unknown'}\n- VO2max: ${garminSummary.vo2Max ?? 'unknown'}\n- VO2max running: ${garminSummary.vo2MaxRunning ?? 'unknown'}\n- VO2max cycling: ${garminSummary.vo2MaxCycling ?? 'unknown'}\n- Training readiness score: ${garminSummary.readinessScore ?? 'unknown'}\n- Training readiness level: ${garminSummary.readinessLevel ?? 'unknown'}\n- Weekly distance: ${garminSummary.weeklyDistance ?? 'unknown'}\n- Weekly time: ${garminSummary.weeklyTime ?? 'unknown'}\nRecent activities:\n${garminSummary.activities.length ? garminSummary.activities.map((activity, index) => `${index + 1}) ${activity.name}, duration ${activity.duration}, distance ${activity.distance}`).join('\n') : 'No recent activities available.'}\nWeekly notes: ${body.weeklyNotes}\nPhysical notes: ${body.physicalNotes || 'none'}\nFeeling: ${body.feeling}\nCurrent focus: ${body.currentFocus || 'unspecified'}\nGoal: ${body.goal || 'general fitness'}`;
 
     const prompt = `${systemPrompt}\n\n${userContext}\n\nRespond with ONLY a valid JSON object. No markdown, no backticks, no explanation. Start with { and end with }`;
 
