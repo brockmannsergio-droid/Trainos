@@ -7,9 +7,9 @@ const feelings = ["Great", "Good", "Okay", "Tired", "Very tired", "Injured"];
 
 export default function WeeklyPlanPage() {
   const [feeling, setFeeling] = useState<string>(feelings[2]);
-  const [availability, setAvailability] = useState<string>("");
+  const [weeklyNotes, setWeeklyNotes] = useState<string>("");
   const [physicalNotes, setPhysicalNotes] = useState<string>("");
-  const [trainingPhase, setTrainingPhase] = useState<string>("");
+  const [currentFocus, setCurrentFocus] = useState<string>("");
   const [goal, setGoal] = useState<string>("");
   const [plan, setPlan] = useState<any | null>(null);
   const [loading, setLoading] = useState(false);
@@ -32,22 +32,26 @@ export default function WeeklyPlanPage() {
         body: JSON.stringify({
           garmin,
           feeling,
-          availability,
+          weeklyNotes,
           physicalNotes,
-          trainingPhase,
+          currentFocus,
           goal,
         }),
       });
 
       const payload = await resp.json();
-      if (!resp.ok) throw new Error(payload?.error || "Failed to generate plan");
+      if (!resp.ok) {
+        const errorMsg = payload?.error || "Failed to generate plan";
+        const detail = payload?.detail;
+        throw new Error(detail ? `${errorMsg}: ${JSON.stringify(detail)}` : errorMsg);
+      }
       const finalPlan = payload.plan ?? payload;
       setPlan(finalPlan);
       try {
         localStorage.setItem('weeklyPlan', JSON.stringify(finalPlan));
       } catch {}
     } catch (err: any) {
-      setError(err.message ?? String(err));
+      setError(typeof err === 'string' ? err : err?.message ?? JSON.stringify(err));
     } finally {
       setLoading(false);
     }
@@ -91,8 +95,8 @@ export default function WeeklyPlanPage() {
           </div>
 
           <textarea placeholder={"Tell me about your week — when you're planning to\ntrain, any commitments, travel, gym sessions, or\nanything that affects your schedule..."}
-            value={availability}
-            onChange={(e) => setAvailability(e.target.value)}
+            value={weeklyNotes}
+            onChange={(e) => setWeeklyNotes(e.target.value)}
             className="min-h-[120px] rounded-2xl border border-slate-800 bg-slate-900/60 p-3 text-sm text-slate-200"
           />
 
@@ -102,7 +106,7 @@ export default function WeeklyPlanPage() {
             className="min-h-[80px] rounded-2xl border border-slate-800 bg-slate-900/60 p-3 text-sm text-slate-200"
           />
 
-          <input placeholder="Training phase (e.g. base, build, race)" value={trainingPhase} onChange={(e) => setTrainingPhase(e.target.value)} className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3 text-sm text-slate-200" />
+          <input placeholder="Current focus (e.g. building aerobic base, speed work)" value={currentFocus} onChange={(e) => setCurrentFocus(e.target.value)} className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3 text-sm text-slate-200" />
           <input placeholder="Goal (e.g. 5k PR, build endurance)" value={goal} onChange={(e) => setGoal(e.target.value)} className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3 text-sm text-slate-200" />
 
           <div className="flex flex-wrap items-center gap-3">

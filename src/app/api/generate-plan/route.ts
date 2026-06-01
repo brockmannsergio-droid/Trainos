@@ -6,9 +6,9 @@ import { weeklyPlanSchema } from '../../../lib/schemas';
 type PlanRequest = {
   garmin: Record<string, any>;
   feeling: string;
-  availability: string;
+  weeklyNotes: string;
   physicalNotes?: string;
-  trainingPhase?: string;
+  currentFocus?: string;
   goal?: string;
 };
 
@@ -42,7 +42,7 @@ TRAINING RULES:
 - No hard sessions back-to-back
 - Respect user's availability and physical notes`;
 
-    const userContext = `Garmin metrics: ${JSON.stringify(body.garmin)}\nAvailability/notes: ${body.availability}\nPhysical notes: ${body.physicalNotes || 'none'}\nFeeling: ${body.feeling}\nTraining phase: ${body.trainingPhase || 'unspecified'}\nGoal: ${body.goal || 'general fitness'}`;
+    const userContext = `Garmin metrics: ${JSON.stringify(body.garmin)}\nWeekly notes: ${body.weeklyNotes}\nPhysical notes: ${body.physicalNotes || 'none'}\nFeeling: ${body.feeling}\nCurrent focus: ${body.currentFocus || 'unspecified'}\nGoal: ${body.goal || 'general fitness'}`;
 
     const prompt = `${systemPrompt}\n\n${userContext}\n\nRespond with ONLY a valid JSON object. No markdown, no backticks, no explanation. Start with { and end with }`;
 
@@ -74,13 +74,15 @@ TRAINING RULES:
     try {
       planJson = await callClaudeWithRetry(prompt, (obj: any) => validate(obj));
     } catch (err: any) {
-      return NextResponse.json({ error: 'Unable to obtain valid plan from Claude', detail: String(err) }, { status: 502 });
+      const detail = typeof err === 'object' && err.message ? err.message : String(err);
+      return NextResponse.json({ error: 'Unable to obtain valid plan from Claude', detail }, { status: 502 });
     }
 
     // final validation to include errors
     const valid = validate(planJson);
     if (!valid) {
-      return NextResponse.json({ error: 'Plan failed schema validation', detail: validate.errors }, { status: 502 });
+      const errorDetails = validate.errors?.map((e: any) => `${e.dataPath || 'root'}: ${e.message}`).join('; ') || JSON.stringify(validate.errors);
+      return NextResponse.json({ error: 'Plan failed schema validation', detail: errorDetails }, { status: 502 });
     }
 
     return NextResponse.json({ plan: planJson });
