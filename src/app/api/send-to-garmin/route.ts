@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     const { workout, date } = body;
     
     // Extract zone number from the zones field
-    const zoneNumber = workout?.zones ? zoneTextToNumber(workout.zones) : number | undefined;
+    const zoneNumber = workout?.zones ? zoneTextToNumber(workout.zones) : undefined;
     
     // Build steps array from warmup, main, cooldown
     const steps: Array<{type: string, duration: number, zoneNumber?: number}> = [];
