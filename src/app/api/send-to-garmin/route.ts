@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     const { workout, date } = body;
     
     // Extract zone number from the zones field
-    const zoneNumber = workout?.zones ? zoneTextToNumber(workout.zones) : null;
+    const zoneNumber = workout?.zones ? zoneTextToNumber(workout.zones) : number | undefined;
     
     // Build steps array from warmup, main, cooldown
     const steps: Array<{type: string, duration: number, zoneNumber?: number}> = [];
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     }
     
     if (workout?.main) {
-      steps.push({ type: 'interval', duration: (workout?.duration ?? 40) * 60 * 0.8, zoneNumber });
+      steps.push({ type: 'interval', duration: (workout?.duration ?? 40) * 60 * 0.8, zoneNumber: zoneNumber ?? undefined });
     }
     
     if (workout?.cooldown) {
