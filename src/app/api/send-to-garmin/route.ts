@@ -1,19 +1,32 @@
 import { NextResponse } from 'next/server';
 
-const PY_SERVICE = process.env.PYTHON_SERVICE_URL || 'http://localhost:8080';
+const TRAINING_SERVICE = process.env.TRAINING_METRICS_SERVICE_URL || 'http://localhost:8080';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const resp = await fetch(`${PY_SERVICE.replace(/\/$/, '')}/send-workout`, {
+    console.log('[send-to-garmin] Sending workout to:', `${TRAINING_SERVICE}/send-workout`);
+    console.log('[send-to-garmin] Payload:', JSON.stringify(body, null, 2));
+
+    const resp = await fetch(`${TRAINING_SERVICE.replace(/\/$/, '')}/send-workout`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
+    
     const payload = await resp.json().catch(() => ({}));
-    if (!resp.ok) return NextResponse.json({ error: payload?.error || 'Failed to send to python service', detail: payload }, { status: resp.status });
+    console.log('[send-to-garmin] Response status:', resp.status);
+    console.log('[send-to-garmin] Response payload:', JSON.stringify(payload, null, 2));
+    
+    if (!resp.ok) {
+      const errorMsg = payload?.error || 'Failed to send to training service';
+      console.error('[send-to-garmin] Error:', errorMsg, 'Detail:', payload);
+      return NextResponse.json({ error: errorMsg, detail: payload }, { status: resp.status });
+    }
     return NextResponse.json(payload);
   } catch (err: any) {
-    return NextResponse.json({ error: err?.message ?? String(err) }, { status: 500 });
+    const errorMsg = err?.message ?? String(err);
+    console.error('[send-to-garmin] Fetch error:', errorMsg);
+    return NextResponse.json({ error: errorMsg }, { status: 500 });
   }
 }
