@@ -18,8 +18,10 @@ export default function WeeklyPlanPage() {
   const [expandedDay, setExpandedDay] = useState<number | null>(null);
   const [sendModalOpen, setSendModalOpen] = useState(false);
   const [modalWorkout, setModalWorkout] = useState<any | null>(null);
+  const [modalWorkoutIdx, setModalWorkoutIdx] = useState<number | null>(null);
   const [modalDate, setModalDate] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [sentWorkouts, setSentWorkouts] = useState<{ [key: number]: { date: string; displayDate: string } }>({});
 
   const submit = async (e: any) => {
     e?.preventDefault();
@@ -80,19 +82,33 @@ export default function WeeklyPlanPage() {
 
   const getNext14Dates = () => {
     const dates = [];
+    const today = new Date();
     for (let i = 0; i < 14; i++) {
       const d = new Date();
       d.setDate(d.getDate() + i);
       const dateStr = d.toISOString().slice(0, 10);
-      const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
-      const monthDay = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      dates.push({ value: dateStr, label: `${dayName}, ${monthDay}` });
+      
+      let label = '';
+      if (i === 0) {
+        const monthDay = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        label = `Today (${monthDay})`;
+      } else if (i === 1) {
+        const monthDay = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        label = `Tomorrow (${monthDay})`;
+      } else {
+        const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+        const monthDay = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        label = `${dayName} ${monthDay}`;
+      }
+      
+      dates.push({ value: dateStr, label });
     }
     return dates;
   };
 
-  const openSendModal = (workout: any) => {
+  const openSendModal = (workout: any, idx: number) => {
     setModalWorkout(workout);
+    setModalWorkoutIdx(idx);
     setModalDate(getNextDateForWeekday(workout?.day));
     setSendModalOpen(true);
     setSuccessMessage(null);
@@ -107,10 +123,29 @@ export default function WeeklyPlanPage() {
       });
       const payload = await resp.json();
       if (!resp.ok) throw new Error(payload?.error || JSON.stringify(payload));
-      setSuccessMessage(`✅ Sent to Forerunner 970 for ${date}!`);
+      
+      // Format the display date nicely
+      const d = new Date(date);
+      const monthDay = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+      
+      // Track sent workout
+      if (modalWorkoutIdx !== null) {
+        setSentWorkouts(prev => ({
+          ...prev,
+          [modalWorkoutIdx]: { date, displayDate: monthDay }
+        }));
+      }
+      
+      setSuccessMessage(`✅ Sent for ${monthDay}`);
+      setTimeout(() => {
+        setSendModalOpen(false);
+        setModalWorkout(null);
+        setModalWorkoutIdx(null);
+        setModalDate(null);
+      }, 500);
       return true;
     } catch (err: any) {
-      setSuccessMessage(String(err?.message ?? err));
+      setSuccessMessage(`❌ ${String(err?.message ?? err)}`);
       return false;
     }
   };
@@ -224,9 +259,13 @@ export default function WeeklyPlanPage() {
                   <button className="text-sm text-slate-100 underline" onClick={() => setExpandedDay(expandedDay === idx ? null : idx)}>
                     {expandedDay === idx ? "Hide details" : "View details"}
                   </button>
-                  <button className="text-sm text-emerald-200 underline" onClick={() => openSendModal(d)}>
-                    Send to Garmin ⌚
-                  </button>
+                  {sentWorkouts[idx] ? (
+                    <div className="text-sm text-emerald-300">✅ Sent for {sentWorkouts[idx].displayDate}</div>
+                  ) : (
+                    <button className="text-sm text-emerald-200 underline" onClick={() => openSendModal(d, idx)}>
+                      Send to Garmin ⌚
+                    </button>
+                  )}
                   <div className="text-sm text-slate-400">TSS: {d.tss ?? "—"}</div>
                 </div>
 
@@ -252,31 +291,55 @@ export default function WeeklyPlanPage() {
         ) : null}
         {sendModalOpen && modalWorkout ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-            <div className="w-full max-w-md rounded-xl bg-slate-900 p-6 text-slate-100">
-              <h3 className="text-lg font-semibold">Send workout to Garmin</h3>
+            <div className="w-full max-w-lg rounded-2xl bg-slate-900 p-6 text-slate-100">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold">Schedule this workout</h3>
+                <button 
+                  className="text-sm text-slate-400 hover:text-slate-200" 
+                  onClick={() => { setSendModalOpen(false); setModalWorkout(null); setModalWorkoutIdx(null); setSuccessMessage(null); }}
+                >
+                  ✕
+                </button>
+              </div>
               <p className="mt-2 text-sm text-slate-400">{modalWorkout.day} — {modalWorkout.type} — {modalWorkout.sport}</p>
 
-              <div className="mt-4">
-                <label className="text-sm text-slate-400">Schedule date</label>
-                <select 
-                  className="mt-1 w-full rounded-md bg-slate-800 p-2 text-sm text-white" 
-                  value={modalDate ?? ''} 
-                  onChange={(e) => setModalDate(e.target.value)}
-                >
+              <div className="mt-6">
+                <label className="text-sm text-slate-300 font-medium">Choose date</label>
+                <div className="mt-3 grid grid-cols-2 gap-2">
                   {getNext14Dates().map((dateOpt) => (
-                    <option key={dateOpt.value} value={dateOpt.value}>
+                    <button
+                      key={dateOpt.value}
+                      onClick={() => setModalDate(dateOpt.value)}
+                      className={`rounded-2xl px-4 py-2 text-sm transition ${
+                        modalDate === dateOpt.value
+                          ? 'bg-emerald-600 text-white border border-emerald-500'
+                          : 'border border-slate-700 bg-slate-800 text-slate-200 hover:border-slate-500'
+                      }`}
+                    >
                       {dateOpt.label}
-                    </option>
+                    </button>
                   ))}
-                </select>
+                </div>
               </div>
 
               {successMessage ? <div className="mt-3 text-sm text-emerald-300">{successMessage}</div> : null}
 
-              <div className="mt-4 flex justify-end gap-3">
-                <button className="rounded-2xl border border-slate-700 px-4 py-2 text-sm" onClick={() => { setSendModalOpen(false); setModalWorkout(null); setSuccessMessage(null); }}>Cancel</button>
-                <button className="rounded-2xl bg-emerald-600 px-4 py-2 text-sm" onClick={async () => { if (!modalWorkout || !modalDate) return; await sendToGarmin(modalWorkout, modalDate); }}>
-                  Send to Garmin
+              <div className="mt-6 flex justify-end gap-3">
+                <button 
+                  className="rounded-2xl border border-slate-700 px-4 py-2 text-sm hover:bg-slate-800" 
+                  onClick={() => { setSendModalOpen(false); setModalWorkout(null); setModalWorkoutIdx(null); setSuccessMessage(null); }}
+                >
+                  ✕ Cancel
+                </button>
+                <button 
+                  className="rounded-2xl bg-emerald-600 px-4 py-2 text-sm hover:bg-emerald-700 disabled:opacity-50" 
+                  disabled={!modalDate}
+                  onClick={async () => { 
+                    if (!modalWorkout || !modalDate) return; 
+                    await sendToGarmin(modalWorkout, modalDate); 
+                  }}
+                >
+                  Send to Garmin ⌚
                 </button>
               </div>
             </div>
