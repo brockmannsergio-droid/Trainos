@@ -44,16 +44,23 @@ export async function POST(request: Request) {
     // Build steps array from warmup, main, cooldown
     const steps: Array<{type: string, duration: number, zoneNumber?: number}> = [];
     
-    if (workout?.warmup) {
-      steps.push({ type: 'warmup', duration: 300, zoneNumber: 1 }); // 5 min warmup in Z1
+    // workout steps can be nested under workout.workout or directly on workout
+    const workoutSteps = workout?.workout ?? workout;
+    const totalDuration = (workout?.duration ?? 40) * 60;
+    const warmupDuration = 10 * 60; // 10 min warmup
+    const cooldownDuration = 10 * 60; // 10 min cooldown
+    const mainDuration = Math.max(totalDuration - warmupDuration - cooldownDuration, 60);
+
+    if (workoutSteps?.warmup) {
+      steps.push({ type: 'warmup', duration: warmupDuration, zoneNumber: 1 });
     }
     
-    if (workout?.main) {
-      steps.push({ type: 'interval', duration: (workout?.duration ?? 40) * 60 * 0.8, zoneNumber: zoneNumber ?? undefined });
+    if (workoutSteps?.main) {
+      steps.push({ type: 'interval', duration: mainDuration, zoneNumber: zoneNumber ?? undefined });
     }
     
-    if (workout?.cooldown) {
-      steps.push({ type: 'cooldown', duration: 300, zoneNumber: 1 }); // 5 min cooldown in Z1
+    if (workoutSteps?.cooldown) {
+      steps.push({ type: 'cooldown', duration: cooldownDuration, zoneNumber: 1 });
     }
     
     const enrichedWorkout = {
