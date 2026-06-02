@@ -29,9 +29,25 @@ const getActivityType = (activity: Record<string, unknown>) => {
 
 export default function ActivitiesPage() {
   const [data, setData] = useState<any | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/garmin').then((r) => r.json()).then(setData).catch(() => setData(null));
+    setLoading(true);
+    setError(null);
+    fetch('/api/garmin')
+      .then(async (res) => {
+        const payload = await res.json();
+        if (!res.ok) {
+          throw new Error(payload?.error || 'Unable to fetch Garmin data.');
+        }
+        setData(payload);
+      })
+      .catch((err) => {
+        setError(err?.message ?? 'Failed to load Garmin data.');
+        setData(null);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const activityCards = useMemo(() => {
@@ -57,31 +73,45 @@ export default function ActivitiesPage() {
         <p className="mt-2 text-sm text-slate-400">Last 30 days of activities with distance, time, HR and TSS.</p>
 
         <div className="mt-6 space-y-4">
-          {activityCards.length ? activityCards.map((activity) => (
-            <div key={activity.id} className="rounded-3xl border border-slate-800 bg-slate-900/80 p-4 transition hover:border-slate-600">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-lg font-semibold text-white">{activity.name}</p>
-                  <p className="mt-1 text-sm text-slate-500">{activity.date}</p>
-                </div>
-                <span className="rounded-full bg-slate-800 px-3 py-1 text-sm text-slate-300">{activity.type}</span>
-              </div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                <div className="rounded-3xl bg-slate-950/60 p-3 text-sm text-slate-300">
-                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Distance</p>
-                  <p className="mt-2 text-base font-semibold text-white">{activity.distance}</p>
-                </div>
-                <div className="rounded-3xl bg-slate-950/60 p-3 text-sm text-slate-300">
-                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Duration</p>
-                  <p className="mt-2 text-base font-semibold text-white">{activity.duration}</p>
-                </div>
-                <div className="rounded-3xl bg-slate-950/60 p-3 text-sm text-slate-300">
-                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Elevation</p>
-                  <p className="mt-2 text-base font-semibold text-white">{activity.elevation}</p>
-                </div>
+          {loading ? (
+            <div className="flex min-h-[160px] items-center justify-center rounded-3xl border border-slate-800 bg-slate-950/60">
+              <div className="flex items-center gap-4 text-slate-300">
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-700 border-t-slate-400"></div>
+                <span>Loading Garmin data…</span>
               </div>
             </div>
-          )) : (
+          ) : error ? (
+            <div className="rounded-3xl border border-rose-700/40 bg-rose-900/40 p-6 text-rose-100">
+              <p className="font-semibold">Unable to load Garmin data</p>
+              <p className="mt-2 text-sm leading-6 text-rose-200">{error}</p>
+            </div>
+          ) : activityCards.length ? (
+            activityCards.map((activity: any) => (
+              <div key={activity.id} className="rounded-3xl border border-slate-800 bg-slate-900/80 p-4 transition hover:border-slate-600">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-lg font-semibold text-white">{activity.name}</p>
+                    <p className="mt-1 text-sm text-slate-500">{activity.date}</p>
+                  </div>
+                  <span className="rounded-full bg-slate-800 px-3 py-1 text-sm text-slate-300">{activity.type}</span>
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-3xl bg-slate-950/60 p-3 text-sm text-slate-300">
+                    <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Distance</p>
+                    <p className="mt-2 text-base font-semibold text-white">{activity.distance}</p>
+                  </div>
+                  <div className="rounded-3xl bg-slate-950/60 p-3 text-sm text-slate-300">
+                    <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Duration</p>
+                    <p className="mt-2 text-base font-semibold text-white">{activity.duration}</p>
+                  </div>
+                  <div className="rounded-3xl bg-slate-950/60 p-3 text-sm text-slate-300">
+                    <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Elevation</p>
+                    <p className="mt-2 text-base font-semibold text-white">{activity.elevation}</p>
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : (
             <div className="rounded-3xl border border-slate-800 bg-slate-950/60 p-6 text-slate-400">No activities found.</div>
           )}
         </div>
