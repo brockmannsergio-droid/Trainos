@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 
 from flask import Flask, jsonify, request
+from garminconnect import Garmin
 
 root_dir = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(root_dir))
@@ -10,6 +11,28 @@ sys.path.insert(0, str(root_dir))
 from scripts.training_metrics import get_training_metrics
 
 app = Flask(__name__)
+
+garmin_client = None
+
+def is_auth_error(exc: Exception) -> bool:
+    message = str(exc).lower()
+    return "401" in message or "403" in message or "unauthorized" in message or "forbidden" in message
+
+
+def reset_garmin_client():
+    global garmin_client
+    garmin_client = None
+
+
+def get_garmin_client(email, password):
+    global garmin_client
+    if garmin_client is not None:
+        return garmin_client
+    client = Garmin(email=email, password=password)
+    client.login()
+    garmin_client = client
+    return client
+
 
 @app.route("/training-metrics", methods=["GET"])
 def training_metrics():
@@ -76,13 +99,21 @@ def training_metrics():
             return jsonify({"error": "Missing workout or date"}), 400
 
         try:
-            client = Garmin(email=email, password=password)
-            client.login()
+            client = get_garmin_client(email, password)
             # Expecting Garmin client to expose add_workout(workout, date)
             if not hasattr(client, 'add_workout'):
                 return jsonify({"error": "Garmin client does not support add_workout on this environment"}), 500
 
-            result = client.add_workout(workout, date)
+            try:
+                result = client.add_workout(workout, date)
+            except Exception as exc:
+                if is_auth_error(exc):
+                    reset_garmin_client()
+                    client = get_garmin_client(email, password)
+                    result = client.add_workout(workout, date)
+                else:
+                    raise
+
             return jsonify({"ok": True, "result": result})
         except Exception as exc:
             return jsonify({"error": str(exc)}), 500

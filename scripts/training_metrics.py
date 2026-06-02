@@ -8,6 +8,27 @@ from pathlib import Path
 
 from garminconnect import Garmin
 
+garmin_client = None
+
+def is_auth_error(exc: Exception) -> bool:
+    message = str(exc).lower()
+    return "401" in message or "403" in message or "unauthorized" in message or "forbidden" in message
+
+
+def reset_garmin_client():
+    global garmin_client
+    garmin_client = None
+
+
+def get_garmin_client(email: str, password: str) -> Garmin:
+    global garmin_client
+    if garmin_client is not None:
+        return garmin_client
+    client = Garmin(email=email, password=password)
+    client.login()
+    garmin_client = client
+    return client
+
 
 def load_env_file(path: Path) -> dict[str, str]:
     if not path.exists():
@@ -67,17 +88,27 @@ def get_training_metrics(email: str | None = None, password: str | None = None) 
     if not email or not password:
         raise ValueError("Missing GARMIN_EMAIL or GARMIN_PASSWORD in environment or .env.local")
 
-    client = Garmin(email=email, password=password)
-    client.login()
+    client = get_garmin_client(email, password)
+
+    def call_with_retry(fn):
+        nonlocal client
+        try:
+            return fn()
+        except Exception as exc:
+            if is_auth_error(exc):
+                reset_garmin_client()
+                client = get_garmin_client(email, password)
+                return fn()
+            raise
 
     today = normalize_date(datetime.utcnow())
 
     results = {
         "date": today,
-        "training_readiness": try_call("training_readiness", lambda: client.get_training_readiness(today)),
-        "training_status": try_call("training_status", lambda: client.get_training_status(today)),
-        "morning_training_readiness": try_call("morning_training_readiness", lambda: client.get_morning_training_readiness(today)),
-        "max_metrics": try_call("max_metrics", lambda: client.get_max_metrics(today)),
+        "training_readiness": try_call("training_readiness", lambda: call_with_retry(lambda: client.get_training_readiness(today))),
+        "training_status": try_call("training_status", lambda: call_with_retry(lambda: client.get_training_status(today))),
+        "morning_training_readiness": try_call("morning_training_readiness", lambda: call_with_retry(lambda: client.get_morning_training_readiness(today))),
+        "max_metrics": try_call("max_metrics", lambda: call_with_retry(lambda: client.get_max_metrics(today))),
     }
 
     candidate_endpoints = [
@@ -90,7 +121,7 @@ def get_training_metrics(email: str | None = None, password: str | None = None) 
 
     raw_endpoints = {}
     for endpoint in candidate_endpoints:
-        raw_endpoints[endpoint] = try_call(endpoint, lambda endpoint=endpoint: client.connectapi(endpoint))
+        raw_endpoints[endpoint] = try_call(endpoint, lambda endpoint=endpoint: call_with_retry(lambda: client.connectapi(endpoint)))
 
     results["raw_endpoints"] = raw_endpoints
 
