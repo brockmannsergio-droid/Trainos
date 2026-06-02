@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import DailyCheckin from "../../components/DailyCheckin";
 
 const feelings = ["Great", "Good", "Okay", "Tired", "Very tired", "Injured"];
@@ -77,6 +78,19 @@ export default function WeeklyPlanPage() {
     return d.toISOString().slice(0,10);
   };
 
+  const getNext14Dates = () => {
+    const dates = [];
+    for (let i = 0; i < 14; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() + i);
+      const dateStr = d.toISOString().slice(0, 10);
+      const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+      const monthDay = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      dates.push({ value: dateStr, label: `${dayName}, ${monthDay}` });
+    }
+    return dates;
+  };
+
   const openSendModal = (workout: any) => {
     setModalWorkout(workout);
     setModalDate(getNextDateForWeekday(workout?.day));
@@ -137,7 +151,12 @@ export default function WeeklyPlanPage() {
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 p-6">
       <div className="mx-auto max-w-4xl">
-        <h1 className="text-3xl font-semibold">Plan My Week</h1>
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-3xl font-semibold">Plan My Week</h1>
+          <Link href="/" className="rounded-2xl border border-slate-700 bg-slate-800 px-4 py-2 text-sm text-slate-100 hover:bg-slate-700">
+            ← Back to Dashboard
+          </Link>
+        </div>
         <p className="mt-2 text-sm text-slate-400">Create a structured 7-day plan based on your availability and Garmin metrics.</p>
 
         <form onSubmit={submit} className="mt-6 grid gap-4">
@@ -239,7 +258,17 @@ export default function WeeklyPlanPage() {
 
               <div className="mt-4">
                 <label className="text-sm text-slate-400">Schedule date</label>
-                <input className="mt-1 w-full rounded-md bg-slate-800 p-2 text-sm text-white" type="date" value={modalDate ?? ''} onChange={(e) => setModalDate(e.target.value)} min={new Date().toISOString().slice(0,10)} max={(() => { const d=new Date(); d.setDate(d.getDate()+14); return d.toISOString().slice(0,10); })()} />
+                <select 
+                  className="mt-1 w-full rounded-md bg-slate-800 p-2 text-sm text-white" 
+                  value={modalDate ?? ''} 
+                  onChange={(e) => setModalDate(e.target.value)}
+                >
+                  {getNext14Dates().map((dateOpt) => (
+                    <option key={dateOpt.value} value={dateOpt.value}>
+                      {dateOpt.label}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {successMessage ? <div className="mt-3 text-sm text-emerald-300">{successMessage}</div> : null}
