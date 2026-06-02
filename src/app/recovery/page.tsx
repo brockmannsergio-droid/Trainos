@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 export default function RecoveryPage() {
   const [data, setData] = useState<any | null>(null);
@@ -12,7 +13,10 @@ export default function RecoveryPage() {
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 p-6">
       <div className="mx-auto max-w-4xl">
-        <h1 className="text-3xl font-semibold">Recovery</h1>
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-3xl font-semibold">Recovery</h1>
+          <Link href="/" className="rounded-2xl border border-slate-700 bg-slate-800 px-4 py-2 text-sm text-slate-100 hover:bg-slate-700">← Back to Dashboard</Link>
+        </div>
         <p className="mt-2 text-sm text-slate-400">Overview of recovery metrics and recommendations.</p>
 
         <div className="mt-6 grid gap-4 md:grid-cols-3">

@@ -1,15 +1,31 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 
-const formatDistance = (m: any) => (m == null ? '—' : `${(Number(m)/1000).toFixed(1)} km`);
-const formatDuration = (s: any) => {
-  if (s == null) return '—';
-  const total = Math.round(Number(s));
+const formatDistance = (meters: number | string | undefined) => {
+  if (!meters || Number.isNaN(Number(meters))) return "—";
+  return `${(Number(meters) / 1000).toFixed(1)} km`;
+};
+
+const formatDuration = (seconds: number | string | undefined) => {
+  if (!seconds || Number.isNaN(Number(seconds))) return "—";
+  const total = Math.round(Number(seconds));
   const h = Math.floor(total/3600);
   const m = Math.floor((total%3600)/60);
   return `${h?`${h}h `:''}${m}m`;
 }
+
+const formatElevation = (meters: number | string | undefined) => {
+  if (meters == null || Number.isNaN(Number(meters))) return "—";
+  return `${Number(meters).toFixed(0)} m`;
+};
+
+const getActivityType = (activity: Record<string, unknown>) => {
+  const rawType = activity["activityName"] ?? activity["activityType"] ?? activity["activityTypeName"] ?? activity["activityTypeDto"];
+  if (!rawType) return 'Activity';
+  return String(rawType as any);
+};
 
 export default function ActivitiesPage() {
   const [data, setData] = useState<any | null>(null);
@@ -18,46 +34,55 @@ export default function ActivitiesPage() {
     fetch('/api/garmin').then((r) => r.json()).then(setData).catch(() => setData(null));
   }, []);
 
-  const activities = (data?.activities ?? []).slice(0,30);
+  const activityCards = useMemo(() => {
+    if (!data?.activities || !Array.isArray(data.activities)) return [];
+    return data.activities.slice(0, 30).map((activity: any, index: number) => ({
+      id: String(activity["activityId"] ?? activity["activityPk"] ?? index),
+      name: String(activity["activityName"] ?? activity["activityType"] ?? 'Activity'),
+      date: String(activity["startTimeLocal"] ?? activity["beginTimestamp"] ?? activity["activityDateLocal"] ?? activity["startTime"] ?? 'Unknown'),
+      distance: formatDistance(activity["distance"] as number | string | undefined),
+      duration: formatDuration((activity["duration"] ?? activity["elapsedDuration"] ?? activity["activeDuration"]) as number | string | undefined),
+      elevation: formatElevation((activity["elevationGain"] ?? activity["totalElevationGain"] ?? activity["climbElevation"]) as number | string | undefined),
+      type: getActivityType(activity as Record<string, unknown>),
+    }));
+  }, [data]);
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 p-6">
       <div className="mx-auto max-w-5xl">
-        <h1 className="text-3xl font-semibold">Activities</h1>
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-3xl font-semibold">Activities</h1>
+          <Link href="/" className="rounded-2xl border border-slate-700 bg-slate-800 px-4 py-2 text-sm text-slate-100 hover:bg-slate-700">← Back to Dashboard</Link>
+        </div>
         <p className="mt-2 text-sm text-slate-400">Last 30 days of activities with distance, time, HR and TSS.</p>
 
         <div className="mt-6 space-y-4">
-          {activities.length ? activities.map((a: any, i: number) => (
-            <div key={i} className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
-              <div className="flex items-center justify-between">
+          {activityCards.length ? activityCards.map((activity) => (
+            <div key={activity.id} className="rounded-3xl border border-slate-800 bg-slate-900/80 p-4 transition hover:border-slate-600">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <div className="text-lg font-semibold text-white">{a.activityName ?? a.activityType ?? 'Activity'}</div>
-                  <div className="text-sm text-slate-400">{a.startTimeLocal ?? a.activityDateLocal ?? a.startTime ?? ''}</div>
+                  <p className="text-lg font-semibold text-white">{activity.name}</p>
+                  <p className="mt-1 text-sm text-slate-500">{activity.date}</p>
                 </div>
-                <div className="text-sm text-slate-300">{formatDistance(a.distance)}</div>
+                <span className="rounded-full bg-slate-800 px-3 py-1 text-sm text-slate-300">{activity.type}</span>
               </div>
-
-              <div className="mt-3 grid gap-3 sm:grid-cols-4 text-sm text-slate-300">
-                <div>
-                  <div className="text-xs text-slate-400">Duration</div>
-                  <div className="mt-1 text-white">{formatDuration(a.duration ?? a.elapsedDuration ?? a.activeDuration)}</div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-3xl bg-slate-950/60 p-3 text-sm text-slate-300">
+                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Distance</p>
+                  <p className="mt-2 text-base font-semibold text-white">{activity.distance}</p>
                 </div>
-                <div>
-                  <div className="text-xs text-slate-400">Avg HR</div>
-                  <div className="mt-1 text-white">{a.averageHeartRate ?? a.avgHr ?? '—'}</div>
+                <div className="rounded-3xl bg-slate-950/60 p-3 text-sm text-slate-300">
+                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Duration</p>
+                  <p className="mt-2 text-base font-semibold text-white">{activity.duration}</p>
                 </div>
-                <div>
-                  <div className="text-xs text-slate-400">TSS</div>
-                  <div className="mt-1 text-white">{a.tss ?? a.trainingStressScore ?? a.trainingEffect ?? '—'}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-slate-400">Sport</div>
-                  <div className="mt-1 text-white">{a.activityType ?? a.activityTypeName ?? '—'}</div>
+                <div className="rounded-3xl bg-slate-950/60 p-3 text-sm text-slate-300">
+                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Elevation</p>
+                  <p className="mt-2 text-base font-semibold text-white">{activity.elevation}</p>
                 </div>
               </div>
             </div>
           )) : (
-            <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-6 text-slate-400">No activities found.</div>
+            <div className="rounded-3xl border border-slate-800 bg-slate-950/60 p-6 text-slate-400">No activities found.</div>
           )}
         </div>
       </div>

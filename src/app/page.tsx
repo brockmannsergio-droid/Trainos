@@ -480,49 +480,16 @@ export default function Home() {
                 </div>
 
                 <div className="mt-6 rounded-[2rem] border border-slate-800 bg-slate-950/70 p-6">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                  <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Recent activities</p>
                       <h3 className="mt-2 text-2xl font-semibold text-white">Last 30 days</h3>
                     </div>
-                    <p className="text-sm text-slate-400">Showing your latest available Garmin activity load.</p>
+                    <div>
+                      <a href="/activities" className="text-sm text-slate-300 hover:underline">View all activities →</a>
+                    </div>
                   </div>
-                  <div className="mt-6 space-y-4">
-                    {activityCards.length > 0 ? (
-                      activityCards.map((activity) => (
-                        <div
-                          key={activity.id}
-                          className="rounded-3xl border border-slate-800 bg-slate-900/80 p-4 transition hover:border-slate-600"
-                        >
-                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <div>
-                              <p className="text-lg font-semibold text-white">{activity.name}</p>
-                              <p className="mt-1 text-sm text-slate-500">{activity.date}</p>
-                            </div>
-                            <span className="rounded-full bg-slate-800 px-3 py-1 text-sm text-slate-300">{activity.type}</span>
-                          </div>
-                          <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                            <div className="rounded-3xl bg-slate-950/60 p-3 text-sm text-slate-300">
-                              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Distance</p>
-                              <p className="mt-2 text-base font-semibold text-white">{activity.distance}</p>
-                            </div>
-                            <div className="rounded-3xl bg-slate-950/60 p-3 text-sm text-slate-300">
-                              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Duration</p>
-                              <p className="mt-2 text-base font-semibold text-white">{activity.duration}</p>
-                            </div>
-                            <div className="rounded-3xl bg-slate-950/60 p-3 text-sm text-slate-300">
-                              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Elevation</p>
-                              <p className="mt-2 text-base font-semibold text-white">{activity.elevation}</p>
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="rounded-3xl border border-slate-800 bg-slate-950/60 p-6 text-slate-400">
-                        No recent activities were found in Garmin for the last 30 days.
-                      </div>
-                    )}
-                  </div>
+                  <p className="mt-4 text-sm text-slate-400">Open the Activities page to see the full list and details.</p>
                 </div>
 
                 {data?.heartRateZones && data.heartRateZones.length > 0 ? (

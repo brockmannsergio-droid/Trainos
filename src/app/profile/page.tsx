@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 const getLatestFitness = (fitness: any[]) => (fitness && fitness.length ? fitness[fitness.length-1] : null);
 
@@ -16,7 +17,10 @@ export default function ProfilePage() {
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 p-6">
       <div className="mx-auto max-w-4xl">
-        <h1 className="text-3xl font-semibold">Profile</h1>
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-3xl font-semibold">Profile</h1>
+          <Link href="/" className="rounded-2xl border border-slate-700 bg-slate-800 px-4 py-2 text-sm text-slate-100 hover:bg-slate-700">← Back to Dashboard</Link>
+        </div>
         <p className="mt-2 text-sm text-slate-400">Your current fitness and device information.</p>
 
         <div className="mt-6 grid gap-4 md:grid-cols-3">
