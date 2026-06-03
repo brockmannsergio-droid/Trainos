@@ -47,8 +47,15 @@ export async function POST(request: Request) {
     // workout steps can be nested under workout.workout or directly on workout
     const workoutSteps = workout?.workout ?? workout;
     const totalDuration = (workout?.duration ?? 40) * 60;
-    const warmupDuration = 10 * 60; // 10 min warmup
-    const cooldownDuration = 10 * 60; // 10 min cooldown
+    
+    // Parse duration from warmup/cooldown text (e.g. "15 min building to Z2" → 15)
+    const parseDuration = (text: string): number => {
+      const match = text?.match(/(\d+)\s*min/i);
+      return match ? parseInt(match[1]) * 60 : 10 * 60;
+    };
+    
+    const warmupDuration = workoutSteps?.warmup ? parseDuration(workoutSteps.warmup) : 10 * 60;
+    const cooldownDuration = workoutSteps?.cooldown ? parseDuration(workoutSteps.cooldown) : 10 * 60;
     const mainDuration = Math.max(totalDuration - warmupDuration - cooldownDuration, 60);
 
     if (workoutSteps?.warmup) {
