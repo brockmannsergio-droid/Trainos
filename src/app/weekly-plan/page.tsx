@@ -71,13 +71,13 @@ export default function WeeklyPlanPage() {
     const names = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
     const target = names.indexOf(String(weekdayName || '').toLowerCase());
     const today = new Date();
-    if (target === -1) return today.toISOString().slice(0,10);
+    if (target === -1) return `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
     const day = today.getDay();
     let diff = (target - day + 7) % 7;
     if (diff === 0) diff = 7; // next occurrence
     const d = new Date();
     d.setDate(d.getDate() + diff);
-    return d.toISOString().slice(0,10);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   };
 
   const getNext14Dates = () => {
@@ -86,7 +86,7 @@ export default function WeeklyPlanPage() {
     for (let i = 0; i < 14; i++) {
       const d = new Date();
       d.setDate(d.getDate() + i);
-      const dateStr = d.toISOString().slice(0, 10);
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
       
       let label = '';
       if (i === 0) {
@@ -124,8 +124,9 @@ export default function WeeklyPlanPage() {
       const payload = await resp.json();
       if (!resp.ok) throw new Error(payload?.error || JSON.stringify(payload));
       
-      // Format the display date nicely
-      const d = new Date(date);
+      // Format the display date nicely - parse as local date to avoid UTC timezone shift
+      const [year, month, day] = date.split('-').map(Number);
+      const d = new Date(year, month - 1, day);
       const monthDay = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
       
       // Track sent workout
