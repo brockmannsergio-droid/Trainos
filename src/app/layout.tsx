@@ -50,7 +50,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-status-bar-style" content="black" />
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
-      <body className="min-h-full bg-slate-950 text-slate-100" style={{paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)'}}>
+      <body className="min-h-full bg-slate-950 text-slate-100 overflow-x-hidden w-full">
         {children}
       </body>
     </html>

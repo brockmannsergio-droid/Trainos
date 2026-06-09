@@ -277,7 +277,7 @@ export default function Home() {
           </Link>
         ))}
       </nav>
-      <div className="mx-auto flex min-h-screen max-w-7xl gap-6 px-4 py-6 pb-24 sm:px-6 lg:px-8 lg:pb-6">
+      <div className="mx-auto flex min-h-screen w-full max-w-7xl gap-6 px-3 py-4 pb-24 sm:px-6 lg:px-8 lg:pb-6">
         <aside className="hidden w-72 flex-col gap-6 rounded-[2rem] border border-slate-800 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/30 backdrop-blur-xl lg:flex">
           <div className="space-y-3">
             <div className="rounded-3xl bg-slate-800/70 px-4 py-5">
