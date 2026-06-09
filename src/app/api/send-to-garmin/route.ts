@@ -56,12 +56,12 @@ export async function POST(request: Request) {
       steps.push({ 
         type: 'repeat', 
         duration: intervals.workDuration, 
-        zoneNumber: zoneNumber,
+        zoneNumber: zoneNumber ?? undefined,
         reps: intervals.reps,
         restDuration: intervals.restDuration
       });
     } else if (workoutSteps?.main) {
-      steps.push({ type: 'interval', duration: mainDuration, zoneNumber });
+      steps.push({ type: 'interval', duration: mainDuration, zoneNumber: zoneNumber ?? undefined });
     }
 
     if (workoutSteps?.cooldown) {
