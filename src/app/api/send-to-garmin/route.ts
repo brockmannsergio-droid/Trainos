@@ -24,7 +24,7 @@ const parseIntervals = (mainText: string): { reps: number, workDuration: number,
   if (!match) return null;
   const reps = parseInt(match[1]);
   const workDuration = parseInt(match[2]) * 60;
-  const restMatch = mainText.match(/(?:with|\+)\s*(\d+)\s*min\s*(?:easy|recovery|rest)/i);
+  const restMatch = mainText.match(/(?:with|\+|,)?\s*(\d+)\s*min(?:ute)?s?\s*(?:easy|recovery|rest|jog|between|active)/i);
   const restDuration = restMatch ? parseInt(restMatch[1]) * 60 : 90;
   return { reps, workDuration, restDuration };
 };
