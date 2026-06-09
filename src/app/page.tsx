@@ -1,4 +1,5 @@
 "use client";
+import React from "react";
 
 import { useEffect, useMemo, useState } from "react";
 import DailyCheckin from "../components/DailyCheckin";
@@ -120,19 +121,29 @@ const getFitnessValue = (value?: number | string | null) => {
   return String(value);
 };
 
-const TooltipLabel = ({ label, tooltip }: { label: string; tooltip?: string }) => (
-  <div className="inline-flex items-center gap-2">
-    <span>{label}</span>
-    {tooltip ? (
-      <span className="group relative inline-flex items-center">
-        <span className="text-slate-400 text-xs cursor-help">ℹ</span>
-        <span className="pointer-events-none absolute left-1/2 top-full z-10 hidden w-72 -translate-x-1/2 rounded-2xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100 shadow-lg shadow-slate-950/40 group-hover:block">
-          {tooltip}
+const TooltipLabel = ({ label, tooltip }: { label: string; tooltip?: string }) => {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <div className="inline-flex items-center gap-2">
+      <span>{label}</span>
+      {tooltip ? (
+        <span
+          className="relative inline-flex items-center"
+          onClick={() => setOpen(o => !o)}
+          onMouseEnter={() => setOpen(true)}
+          onMouseLeave={() => setOpen(false)}
+        >
+          <span className="text-slate-400 text-xs cursor-pointer select-none">ℹ</span>
+          {open && (
+            <span className="absolute left-1/2 top-full z-50 mt-1 w-72 -translate-x-1/2 rounded-2xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100 shadow-lg shadow-slate-950/40">
+              {tooltip}
+            </span>
+          )}
         </span>
-      </span>
-    ) : null}
-  </div>
-);
+      ) : null}
+    </div>
+  );
+};
 
 const formatElevation = (meters: number | string | undefined) => {
   if (meters == null || Number.isNaN(Number(meters))) return "—";

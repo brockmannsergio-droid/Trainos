@@ -54,30 +54,30 @@ export default function DailyCheckin() {
 
   return (
     <div className="w-full">
-      <form onSubmit={handleSubmit} className="flex w-full items-start gap-3">
-        <select
-          value={feeling}
-          onChange={(e) => setFeeling(e.target.value)}
-          className="rounded-2xl border border-slate-800 bg-slate-900/60 px-3 py-2 text-sm text-slate-100"
-          aria-label="How are you feeling today"
-        >
-          {feelings.map((f) => (
-            <option key={f} value={f}>
-              {f}
-            </option>
-          ))}
-        </select>
-
+      <form onSubmit={handleSubmit} className="flex w-full flex-col gap-3">
+        <div className="flex items-center gap-3">
+          <select
+            value={feeling}
+            onChange={(e) => setFeeling(e.target.value)}
+            className="flex-1 rounded-2xl border border-slate-800 bg-slate-900/60 px-3 py-2 text-sm text-slate-100"
+            aria-label="How are you feeling today"
+          >
+            {feelings.map((f) => (
+              <option key={f} value={f}>
+                {f}
+              </option>
+            ))}
+          </select>
+          <button disabled={loading} className="rounded-2xl bg-slate-700 px-4 py-2 text-sm text-white whitespace-nowrap" type="submit">
+            {loading ? 'Adapting…' : 'Save'}
+          </button>
+        </div>
         <input
           placeholder="Anything to add about today?"
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          className="flex-1 rounded-2xl border border-slate-800 bg-slate-900/60 px-3 py-2 text-sm text-slate-200"
+          className="w-full rounded-2xl border border-slate-800 bg-slate-900/60 px-3 py-2 text-sm text-slate-200"
         />
-
-        <button disabled={loading} className="rounded-2xl bg-slate-700 px-4 py-2 text-sm text-white" type="submit">
-          {loading ? 'Adapting…' : 'Save'}
-        </button>
       </form>
 
       {loading ? <div className="mt-2 text-sm text-slate-400">Contacting AI to adapt today's workout…</div> : null}
