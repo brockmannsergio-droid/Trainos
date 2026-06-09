@@ -254,9 +254,30 @@ export default function Home() {
     },
   ];
 
+  const bottomNavItems = [
+    { label: 'Home', href: '/', icon: '⊞' },
+    { label: 'Plan', href: '/plan', icon: '📅' },
+    { label: 'Recovery', href: '/recovery', icon: '💓' },
+    { label: 'Activities', href: '/activities', icon: '🏃' },
+    { label: 'Profile', href: '/profile', icon: '👤' },
+  ];
+
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100">
-      <div className="mx-auto flex min-h-screen max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:px-8">
+      {/* Mobile bottom navigation */}
+      <nav className="fixed bottom-0 left-0 right-0 z-50 flex lg:hidden border-t border-slate-800 bg-slate-950/95 backdrop-blur-xl" style={{paddingBottom: 'env(safe-area-inset-bottom)'}}>
+        {bottomNavItems.map((item) => (
+          <Link
+            key={item.label}
+            href={item.href}
+            className="flex flex-1 flex-col items-center justify-center py-3 gap-1 text-slate-400 hover:text-orange-400 transition-colors active:scale-95"
+          >
+            <span className="text-xl leading-none">{item.icon}</span>
+            <span className="text-[10px] font-medium">{item.label}</span>
+          </Link>
+        ))}
+      </nav>
+      <div className="mx-auto flex min-h-screen max-w-7xl gap-6 px-4 py-6 pb-24 sm:px-6 lg:px-8 lg:pb-6">
         <aside className="hidden w-72 flex-col gap-6 rounded-[2rem] border border-slate-800 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/30 backdrop-blur-xl lg:flex">
           <div className="space-y-3">
             <div className="rounded-3xl bg-slate-800/70 px-4 py-5">

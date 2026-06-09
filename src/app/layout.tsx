@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -12,9 +12,26 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: "#f97316",
+};
+
 export const metadata: Metadata = {
-  title: "Endurance Training Dashboard",
-  description: "Personal Garmin-powered endurance dashboard for HRV, sleep, recovery, and activity load.",
+  title: "TrainOS",
+  description: "AI-powered endurance training dashboard",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "TrainOS",
+  },
+  formatDetection: {
+    telephone: false,
+  },
 };
 
 export default function RootLayout({
@@ -27,7 +44,15 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full bg-slate-950 text-slate-100">{children}</body>
+      <head>
+        <link rel="apple-touch-icon" href="/icon-192.png" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="mobile-web-app-capable" content="yes" />
+      </head>
+      <body className="min-h-full bg-slate-950 text-slate-100 pb-safe">
+        {children}
+      </body>
     </html>
   );
 }
