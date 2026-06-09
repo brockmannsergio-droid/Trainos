@@ -72,11 +72,12 @@ export default function DailyCheckin() {
             {loading ? 'Adapting…' : 'Save'}
           </button>
         </div>
-        <input
-          placeholder="Anything to add about today?"
+        <textarea
+          placeholder="Anything to add about today? e.g. heavy legs, stressed, left knee sore, feeling motivated..."
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          className="w-full rounded-2xl border border-slate-800 bg-slate-900/60 px-3 py-2 text-sm text-slate-200"
+          rows={3}
+          className="w-full rounded-2xl border border-slate-800 bg-slate-900/60 px-3 py-3 text-sm text-slate-200 resize-none"
         />
       </form>
 
