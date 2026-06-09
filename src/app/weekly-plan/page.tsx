@@ -106,6 +106,39 @@ export default function WeeklyPlanPage() {
     return dates;
   };
 
+  const exportFit = async (workout: any) => {
+    try {
+      const workoutName = `TrainOS - ${workout?.day ?? ''} ${workout?.type ?? ''} ${workout?.sport ?? ''}`.trim();
+      const workoutSteps = workout?.workout ?? workout;
+      const totalDuration = (workout?.duration ?? 40) * 60;
+      const warmupDuration = Number(workoutSteps?.warmup?.match(/(\d+)\s*min/i)?.[1] ?? 10) * 60;
+      const cooldownDuration = Number(workoutSteps?.cooldown?.match(/(\d+)\s*min/i)?.[1] ?? 10) * 60;
+      const mainDuration = Math.max(totalDuration - warmupDuration - cooldownDuration, 60);
+      const zoneNum = Number(workout?.zones?.match(/Z(\d)/i)?.[1] ?? 2);
+      const steps = [];
+      if (workoutSteps?.warmup) steps.push({ type: 'warmup', duration: warmupDuration, zoneNumber: 1 });
+      if (workoutSteps?.main) steps.push({ type: 'interval', duration: mainDuration, zoneNumber: zoneNum });
+      if (workoutSteps?.cooldown) steps.push({ type: 'cooldown', duration: cooldownDuration, zoneNumber: 1 });
+      const resp = await fetch('/api/export-fit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workout: { name: workoutName, sport: workout?.sport ?? 'running', steps } }),
+      });
+      if (!resp.ok) throw new Error('Export failed');
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${workoutName.replace(/[^a-z0-9]/gi, '_')}.fit`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      alert('Export failed: ' + e.message);
+    }
+  };
+
   const openSendModal = (workout: any, idx: number) => {
     setModalWorkout(workout);
     setModalWorkoutIdx(idx);
@@ -267,6 +300,9 @@ export default function WeeklyPlanPage() {
                       Send to Garmin ⌚
                     </button>
                   )}
+                  <button className="text-sm text-blue-300 underline" onClick={() => exportFit(d)}>
+                    Export .FIT
+                  </button>
                   <div className="text-sm text-slate-400">TSS: {d.tss ?? "—"}</div>
                 </div>
 
