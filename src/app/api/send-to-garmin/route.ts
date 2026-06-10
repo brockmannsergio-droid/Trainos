@@ -36,7 +36,7 @@ export async function POST(request: Request) {
 
     const workoutSteps = workout?.workout ?? workout;
     const totalDuration = (workout?.duration ?? 40) * 60;
-    const zoneNumber = workout?.zones ? zoneTextToNumber(workout.zones) : 2;
+    const zoneNumber: number = workout?.zones ? zoneTextToNumber(workout.zones) : 2;
 
     const warmupDuration = workoutSteps?.warmup ? parseDuration(workoutSteps.warmup) : 10 * 60;
     const cooldownDuration = workoutSteps?.cooldown ? parseDuration(workoutSteps.cooldown) : 10 * 60;
