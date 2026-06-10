@@ -78,7 +78,8 @@ export async function POST(request: Request) {
     if (!workout) return NextResponse.json({ error: 'No workout' }, { status: 400 });
     const fitData = buildFitWorkout(workout);
     const name = (workout.name || 'trainos-workout').replace(/[^a-z0-9]/gi, '_');
-    return new NextResponse(fitData, {
+    const buffer = Buffer.from(fitData);
+    return new NextResponse(buffer, {
       status: 200,
       headers: {
         'Content-Type': 'application/octet-stream',
