@@ -17,8 +17,6 @@ const parseDuration = (text: string): number => {
   return match ? parseInt(match[1]) * 60 : 10 * 60;
 };
 
-// Parse interval structure from main set text
-// e.g. "8x3 min hard efforts with 2 min easy recovery"
 const parseIntervals = (mainText: string): { reps: number, workDuration: number, restDuration: number } | null => {
   const match = mainText?.match(/(\d+)\s*[x×]\s*(\d+)\s*min/i);
   if (!match) return null;
@@ -29,6 +27,14 @@ const parseIntervals = (mainText: string): { reps: number, workDuration: number,
   return { reps, workDuration, restDuration };
 };
 
+type WorkoutStep = {
+  type: string;
+  duration: number;
+  zoneNumber?: number;
+  reps?: number;
+  restDuration?: number;
+};
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -36,32 +42,28 @@ export async function POST(request: Request) {
 
     const workoutSteps = workout?.workout ?? workout;
     const totalDuration = (workout?.duration ?? 40) * 60;
-    const zoneNumber: number = workout?.zones ? zoneTextToNumber(workout.zones) : 2;
-
+    const zoneNum: number = workout?.zones ? zoneTextToNumber(workout.zones) : 2;
     const warmupDuration = workoutSteps?.warmup ? parseDuration(workoutSteps.warmup) : 10 * 60;
     const cooldownDuration = workoutSteps?.cooldown ? parseDuration(workoutSteps.cooldown) : 10 * 60;
     const mainDuration = Math.max(totalDuration - warmupDuration - cooldownDuration, 60);
-
-    // Try to parse intervals from main set
     const intervals = workoutSteps?.main ? parseIntervals(workoutSteps.main) : null;
 
-    const steps: Array<{type: string, duration: number, zoneNumber?: number, reps?: number, restDuration?: number}> = [];
+    const steps: WorkoutStep[] = [];
 
     if (workoutSteps?.warmup) {
       steps.push({ type: 'warmup', duration: warmupDuration, zoneNumber: 1 });
     }
 
     if (intervals) {
-      // Send as interval repeat
-      steps.push({ 
-        type: 'repeat', 
-        duration: intervals.workDuration, 
-        zoneNumber: zoneNumber ?? undefined,
+      steps.push({
+        type: 'repeat',
+        duration: intervals.workDuration,
+        zoneNumber: zoneNum,
         reps: intervals.reps,
         restDuration: intervals.restDuration
       });
     } else if (workoutSteps?.main) {
-      steps.push({ type: 'interval', duration: mainDuration, zoneNumber: zoneNumber ?? undefined });
+      steps.push({ type: 'interval', duration: mainDuration, zoneNumber: zoneNum });
     }
 
     if (workoutSteps?.cooldown) {
@@ -71,12 +73,7 @@ export async function POST(request: Request) {
     const workoutName = `TrainOS - ${workout?.day ?? ''} ${workout?.type ?? ''} ${workout?.sport ?? ''}`
       .replace(/\s+/g, ' ').trim();
 
-    const enrichedWorkout = {
-      ...workout,
-      name: workoutName,
-      steps,
-    };
-
+    const enrichedWorkout = { ...workout, name: workoutName, steps };
     const payload = { workout: enrichedWorkout, date };
 
     console.log('[send-to-garmin] Payload:', JSON.stringify(payload, null, 2));
